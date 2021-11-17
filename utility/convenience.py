@@ -20,7 +20,7 @@ def sha256sum(filename):
 
 
 def filter_type(filetype):
-    types = {'PNG', 'Targa', 'TrueType', 'Android binary XML'}
+    types = {'PNG', 'Targa', 'TrueType', 'Android binary XML', 'JPEG', 'SVG', 'HTML', 'XML'}
     for t in types:
         if filetype.startswith(t):
             return False
