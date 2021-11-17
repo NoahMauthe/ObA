@@ -1,0 +1,46 @@
+Bootstrap: docker
+From: archlinux:latest
+
+%post
+	# Setting pacman to love candy
+		echo "ILoveCandy" >> /etc/pacman.conf
+	# Installing required packages
+        pacman -Sy --noconfirm git curl unzip python file
+        # Git:      Setup only, will be removed
+        # Curl:     Used to download androzoo apps
+        # Unzip:    Extract apk files
+        # Python:   Required to run everything
+        # File:     Will provide libmagic.so for python-magic
+	# Setting up pip packages
+		cd /
+		curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+		python get-pip.py
+		rm get-pip.py
+		python -m pip install -U pip
+		python -m pip install --upgrade pip
+    # Installing python packages from source
+        git clone --recursive https://github.com/androguard/androguard.git
+        cd androguard
+        git checkout v3.4.0a1
+        pip install .
+        cd /
+        rm -rf androguard
+        git clone https://github.com/NoahMauthe/APIs.git API
+        cd API
+        pip install .
+        cd /
+        rm -rf API
+    # Installing regular python packages
+        python -m pip install psycopg2~=2.9.2
+        python -m pip install python-magic~=0.4.24
+        python -m pip install apkid>=2.1.2
+
+
+%apprun oba
+	cd /scif/apps/oba/oba
+	python main.py "$@"
+
+%appinstall oba
+    git clone https://github.com/NoahMauthe/oba.git
+	pacman -Rns --noconfirm git
+
