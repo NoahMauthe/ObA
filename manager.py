@@ -23,15 +23,15 @@ class Manager:
         self.apk_manager = None
         self.lock = RLock()
         self.workers = {}
-        vm = VariableManager()
-        self.remove = vm.list()
-        self.total = vm.Value(int, 0)
-        self.failed = vm.Value(int, 0)
-        self.timeout = vm.Value(int, 0)
-        self.success = vm.Value(int, 0)
-        self.memory = vm.Value(int, 0)
-        self.stopped = vm.Value(bool, False)
-        self.start_time = vm.Value(int, monotonic_ns())
+        self.vm = VariableManager()
+        self.remove = self.vm.list()
+        self.total = self.vm.Value(int, 0)
+        self.failed = self.vm.Value(int, 0)
+        self.timeout = self.vm.Value(int, 0)
+        self.success = self.vm.Value(int, 0)
+        self.memory = self.vm.Value(int, 0)
+        self.stopped = self.vm.Value(bool, False)
+        self.start_time = self.vm.Value(int, monotonic_ns())
 
     def init(self):
         database.create()
@@ -76,7 +76,7 @@ class Manager:
 
     def run(self):
         self.init()
-        to_sleep = 60 - ((monotonic_ns() - self.start_time.get()) // 1000000000)
+        to_sleep = max(1, 60 - ((monotonic_ns() - self.start_time.get()) // 1000000000))
         sleep(to_sleep)
         while True:
             try:
@@ -125,19 +125,20 @@ class Manager:
             self.logger.debug(f'Analyzed {self.total.get()} apks.')
 
     def verbose_status(self):
-        total = self.total.get()
-        percent = max(1, total)
-        s = f'\n\t##### STATUS {"#" * 20}\n\n' \
-            f'\tTime elapsed:\t{convert_time(monotonic_ns() - self.start_time.get()):>17}\n' \
-            f'\tVirusTotal:\t{self.vt_manager.info():>17}\n\n' \
-            f'\tSuccess:  {self.success.get():>12,d} ({self.success.get() / percent * 100:>6.2f}%)\n' \
-            f'\tTimeout:  {self.timeout.get():>12,d} ({self.timeout.get() / percent * 100:>6.2f}%)\n' \
-            f'\tFailed:   {self.failed.get():>12,d} ({self.failed.get() / percent * 100:>6.2f}%)\n' \
-            f'\tMemory:   {self.memory.get():>12,d} ({self.memory.get() / percent * 100:>6.2f}%)\n' \
-            f'\t{"-" * 33}\n' \
-            f'\tTotal:    {total:>11,d}\n\n' \
-            '\t' + '#' * 33
-        self.logger.log(STATUS, s)
+        with self.lock:
+            total = self.total.get()
+            percent = max(1, total)
+            s = f'\n\t##### STATUS {"#" * 20}\n\n' \
+                f'\tTime elapsed:\t{convert_time(monotonic_ns() - self.start_time.get()):>17}\n' \
+                f'\tVirusTotal:\t{self.vt_manager.info():>17}\n\n' \
+                f'\tSuccess:  {self.success.get():>12,d} ({self.success.get() / percent * 100:>6.2f}%)\n' \
+                f'\tTimeout:  {self.timeout.get():>12,d} ({self.timeout.get() / percent * 100:>6.2f}%)\n' \
+                f'\tFailed:   {self.failed.get():>12,d} ({self.failed.get() / percent * 100:>6.2f}%)\n' \
+                f'\tMemory:   {self.memory.get():>12,d} ({self.memory.get() / percent * 100:>6.2f}%)\n' \
+                f'\t{"-" * 33}\n' \
+                f'\tTotal:    {total:>11,d}\n\n' \
+                '\t' + '#' * 33
+            self.logger.log(STATUS, s)
 
     def restart_dead_processes(self):
         with self.lock:

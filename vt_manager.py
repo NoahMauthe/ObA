@@ -18,9 +18,9 @@ class VTManager:
         self.logger = logging.getLogger('VirusTotal')
         self.logger.setLevel(logging.NOTSET)
         self.lock = RLock()
-        vm = VariableManager()
-        self.quota = vm.Value(int, quota)
-        self.start = vm.Value(int, monotonic_ns())
+        self.vm = VariableManager()
+        self.quota = self.vm.Value(int, quota)
+        self.start = self.vm.Value(int, monotonic_ns())
 
     def offer(self, sha256):
         pass
