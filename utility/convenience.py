@@ -8,7 +8,7 @@ ENTROPY_THRESHOLD = 7.2
 VERBOSE = 15
 STATUS = 30
 TIMEOUT = 900
-WORKER_COUNT = int(len(os.sched_getaffinity(0)) // 2)
+WORKER_COUNT = len(os.sched_getaffinity(0))
 MAX_MEM = 5500000000
 
 byte_list = bytes([i for i in range(0, 256)])
