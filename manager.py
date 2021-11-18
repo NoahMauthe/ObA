@@ -79,12 +79,16 @@ class Manager:
         to_sleep = 60 - ((monotonic_ns() - self.start_time.get()) // 1000000000)
         sleep(to_sleep)
         while True:
-            with self.lock:
-                if self.stopped.get():
-                    self.shutdown()
-            self.verbose_status()
-            self.restart_dead_processes()
-            sleep(60)
+            try:
+                with self.lock:
+                    if self.stopped.get():
+                        break
+                self.verbose_status()
+                self.restart_dead_processes()
+                sleep(60)
+            except Exception as error:
+                self.logger.error(f'Main thread encountered an error: {repr(error)}')
+        self.shutdown()
 
     def stop(self):
         with self.lock:
