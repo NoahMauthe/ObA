@@ -32,7 +32,8 @@ From: archlinux:latest
     # Installing regular python packages
         python -m pip install psycopg2-binary~=2.9.2
         python -m pip install python-magic~=0.4.24
-        python -m pip install apkid>=2.1.2
+        python -m pip install apkid~=2.1.2
+        python -m pip install sklearn
 
 
 %apprun oba
