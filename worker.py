@@ -46,6 +46,7 @@ class Worker(Process):
             apk_info = self.apks.get()
             if not apk_info:
                 self.logger.info(f'Got empty apk. Assuming end of work and shutting down.')
+                self.manager.stop(self.name)
                 break
             sha256, directory, pre, post = apk_info
             try:
@@ -76,7 +77,6 @@ class Worker(Process):
                 database.full_error(sha256, f'Encountered an unexpected error: {repr(error)}')
             if post:
                 post(sha256, directory)
-        self.manager.stop()
         self.logger.info('Finished.')
 
     def reset(self, sha256):

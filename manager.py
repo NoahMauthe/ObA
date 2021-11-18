@@ -82,6 +82,7 @@ class Manager:
             try:
                 with self.lock:
                     if self.stopped.get():
+                        self.logger.info('was stopped.')
                         break
                 self.verbose_status()
                 self.restart_dead_processes()
@@ -90,7 +91,8 @@ class Manager:
                 self.logger.error(f'Main thread encountered an error: {repr(error)}')
         self.shutdown()
 
-    def stop(self):
+    def stop(self, name):
+        self.logger.info(f'Manager was stopped by {name}.')
         with self.lock:
             self.stopped.set(True)
 
