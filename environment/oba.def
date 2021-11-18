@@ -19,9 +19,8 @@ From: archlinux:latest
 		python -m pip install -U pip
 		python -m pip install --upgrade pip
     # Installing python packages from source
-        git clone --recursive https://github.com/androguard/androguard.git
+        git clone --recursive https://github.com/androguard/androguard.git -b v3.4.0a1 --depth 1
         cd androguard
-        git checkout v3.4.0a1
         pip install .
         cd /
         rm -rf androguard
