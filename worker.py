@@ -5,6 +5,7 @@ import os
 import pickle
 import signal
 import time
+from importlib.resources import files, as_file
 from multiprocessing import Process
 from resource import getrlimit, RLIMIT_AS, setrlimit
 from subprocess import SubprocessError, check_output, CalledProcessError, DEVNULL
@@ -13,6 +14,7 @@ import numpy as np
 from androguard.decompiler.dad.decompile import DvMethod
 from androguard.misc import AnalyzeAPK
 
+import cfganomaly
 import database
 from cfganomaly.cfganomaly import CfgAnomaly
 from method_parser import MethodParser, ParserError
@@ -21,7 +23,7 @@ from utility.convenience import timeout_handler, extract, file_info, bin_name, V
 
 class Worker(Process):
 
-    def __init__(self, name, apks, manager, model):
+    def __init__(self, name, apks, manager):
         super(Worker, self).__init__()
         self.name = name
         self.apks = apks
@@ -34,7 +36,7 @@ class Worker(Process):
         self.current_sha256 = None
         self.manager = manager
         self.anomaly_detector = None
-        self.model = model
+        self.model = files(cfganomaly).joinpath('cfganomaly-model.pickle.gz')
 
     def run(self):
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -264,15 +266,17 @@ class Worker(Process):
     def detect_anomalies(self, method_analyses, cutoff_score=-0.30):
         if self.anomaly_detector is None:
             # Initialize anomaly detector, only needs to be done once in practice
-            if self.model is None:
-                return
-            with gzip.open(self.model, 'rb') as f:
-                model = pickle.load(f)
+            with as_file(self.model) as model_path:
+                model_path = os.path.abspath(model_path)
+                if not os.path.isfile(model_path):
+                    self.logger.error(f'Model was not found at path {model_path}.')
+                with gzip.open(self.model, 'rb') as f:
+                    model = pickle.load(f)
             self.anomaly_detector = CfgAnomaly(model)
 
         scores = self.anomaly_detector.get_anomaly_scores(method_analyses)
 
-        # Print methods whose anomaly scores fall under the threshold
+        # Store methods whose anomaly scores fall under the threshold
         # (i.e., the most anomalous methods)
         indices = np.flatnonzero(scores < cutoff_score)
         anomalies = {}

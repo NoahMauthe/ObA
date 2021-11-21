@@ -15,8 +15,7 @@ from worker import Worker
 
 class Manager:
 
-    def __init__(self, args):
-        self.args = args
+    def __init__(self):
         self.logger = logging.getLogger('Manager')
         self.logger.setLevel(logging.NOTSET)
         signal.signal(signal.SIGINT, self.handle_interrupt)
@@ -34,23 +33,14 @@ class Manager:
         self.stopped = self.vm.Value(bool, False)
         self.start_time = self.vm.Value(int, monotonic_ns())
 
-    def init(self):
-        database.create()
-        queue = Queue(WORKER_COUNT)
-        self.vt_manager = Dummy()
-        if self.args.local:
-            self.apk_manager = LocalApkManager(self.args.local, queue)
-        else:
-            self.apk_manager = AndrozooApkManager(self.args.androzoo, self.args.queries, queue)
-            if self.args.vt:
-                self.vt_manager = Active(self.args.vt, self.args.quota)
-        self.apk_manager.start()
-        self.start_workers(self.args.model)
+    def init(self, _):
+        self.logger.fatal('Not meant for direct calls, use GplayManager or AndrozooManager instead.')
+        sys.exit(1)
 
-    def start_workers(self, model):
+    def start_workers(self):
         for i in range(WORKER_COUNT):
             name = f'Worker {"0" if i < 10 else ""}{i}'
-            worker = Worker(name, self.apk_manager.queue, self, model)
+            worker = Worker(name, self.apk_manager.queue, self)
             self.workers[name] = worker
             worker.start()
             self.logger.log(VERBOSE, f'Started {name}')
@@ -75,8 +65,8 @@ class Manager:
         self.logger.info(f'All done, exiting now.')
         sys.exit(0)
 
-    def run(self):
-        self.init()
+    def run(self, args):
+        self.init(args)
         to_sleep = max(1, 60 - ((monotonic_ns() - self.start_time.get()) // 1000000000))
         sleep(to_sleep)
         while True:
@@ -152,7 +142,7 @@ class Manager:
                 worker.join()
                 worker.close()
                 self.workers[name] = None
-                new_worker = Worker(name, self.apk_manager.queue, self, self.args.model)
+                new_worker = Worker(name, self.apk_manager.queue, self)
                 self.workers[name] = new_worker
                 new_worker.start()
                 self.logger.info(f'Restarted {name} with pid {new_worker.pid}')
@@ -168,3 +158,32 @@ class Manager:
                 self.workers[name] = new_worker
                 new_worker.start()
                 self.logger.info(f'Restarted {name} with pid {new_worker.pid}')
+
+
+class GplayManager(Manager):
+
+    def __init__(self):
+        super().__init__()
+
+    def init(self, args):
+        database.create()
+        queue = Queue(WORKER_COUNT)
+        self.vt_manager = Dummy()
+        self.apk_manager = LocalApkManager(os.path.abspath(args.root), queue)
+        self.apk_manager.start()
+        self.start_workers()
+
+
+class AndrozooManager(Manager):
+
+    def __init__(self):
+        super().__init__()
+
+    def init(self, args):
+        database.create()
+        queue = Queue(WORKER_COUNT)
+        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue)
+        if args.vt:
+            self.vt_manager = Active(args.vt, args.quota)
+        else:
+            self.vt_manager = Dummy()
