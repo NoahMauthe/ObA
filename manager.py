@@ -1,4 +1,5 @@
 import logging
+import os
 import signal
 import sys
 from multiprocessing import Manager as VariableManager, Queue, RLock, current_process
@@ -152,6 +153,18 @@ class Manager:
                 worker.close()
                 self.workers[name] = None
                 new_worker = Worker(name, self.apk_manager.queue, self, self.args.model)
+                self.workers[name] = new_worker
+                new_worker.start()
+                self.logger.info(f'Restarted {name} with pid {new_worker.pid}')
+            for name, worker in self.workers.items():
+                if worker:
+                    if worker.is_alive():
+                        continue
+                    worker.terminate()
+                    worker.join()
+                    worker.close()
+                self.workers[name] = None
+                new_worker = Worker(name, self.apk_manager.queue, self)
                 self.workers[name] = new_worker
                 new_worker.start()
                 self.logger.info(f'Restarted {name} with pid {new_worker.pid}')
