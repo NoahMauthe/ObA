@@ -8,7 +8,6 @@ import time
 
 import psycopg2 as db
 
-import utility.convenience
 from compatibility.json import Encoder
 
 logger = logging.getLogger('postgreSQL')
@@ -133,7 +132,7 @@ def create():
     except db.Error:
         db_connection.rollback()
         cursor.execute("SELECT sha256 FROM dex_loaders;")
-        logger.info(f'Table "errors" was already present with {cursor.rowcount} rows')
+        logger.info(f'Table "dex_loaders" was already present with {cursor.rowcount} rows')
     try:
         cursor.execute("CREATE TABLE method_bins (sha256 varchar PRIMARY KEY, bin_empty int, bin_1 int, bin_2 int,"
                        " bin_3 int, bin_4 int, bin_5 int, bin_6 int, bin_7 int, bin_8 int, bin_9 int, bin_10 int,"
@@ -487,8 +486,7 @@ def store_anomalies(sha256, anomalies):
 
 
 def store_reflection_information(sha256, reflected_classes, reflected_methods):
-    logger.log(utility.convenience.VERBOSE,
-               f'{sha256} uses the following classes for reflection\n{pprint.pformat(reflected_classes)}')
+    logger.debug(f'{sha256} uses the following classes for reflection\n{pprint.pformat(reflected_classes)}')
     try:
         db_connection = db.connect(db_string)
     except db.Error:
