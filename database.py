@@ -1,19 +1,158 @@
 import csv
+import gzip
 import json
 import logging
 import os
 import pprint
+import random
+import shlex
 import sys
+import tempfile
 import time
+from subprocess import check_output, CalledProcessError
 
 import psycopg2 as db
 
 from compatibility.json import Encoder
+from utility.convenience import convert_time
 
 logger = logging.getLogger('postgreSQL')
 logger.setLevel(logging.NOTSET)
 
 db_string = 'dbname=malware user=postgres host=0.0.0.0'
+
+
+def download_csv():
+    tmpdir = tempfile.mkdtemp()
+    logger.info('Downloading csv file containing the androzoo database.')
+    start = time.monotonic_ns()
+    try:
+        check_output(shlex.split(
+            f'curl -s -S -o "androzoo.csv.gz" https://androzoo.uni.lu/static/lists/latest.csv.gz'), cwd=tmpdir)
+    except CalledProcessError as error:
+        logger.fatal('Failed to download csv file, exiting now.')
+        sys.exit(repr(error))
+    logger.info(f'Downloading took {convert_time(time.monotonic_ns() - start)}')
+    return os.path.join(tmpdir, 'androzoo.csv.gz')
+
+
+def populate(filepath):
+    """Populates the database with the contents of a .csv file.
+
+    The intended use is with a description of the AndroZoo dataset (https://androzoo.uni.lu/),
+    but any csv file with the correct columns will work.
+    Please refer to https://androzoo.uni.lu/lists for a documentation on the format.
+
+    Parameters
+    ----------
+    filepath : str
+        The path to a csv file containing the information to populate the database with.
+
+    Returns
+    -------
+    int
+        Number of rows in the table after population.
+    """
+    if filepath is None or filepath == '':
+        logger.fatal('No input file found.')
+        sys.exit('No input file found.')
+    if not os.path.isfile(filepath):
+        logger.fatal(f'File "{filepath}" not found.')
+        sys.exit(f'File "{filepath}" not found.')
+    try:
+        db_connection = db.connect(db_string)
+    except db.Error:
+        logger.fatal('Could not establish a connection to the database.')
+        sys.exit('Could not establish a connection to the database.')
+    cursor = db_connection.cursor()
+    try:
+        cursor.execute("CREATE TABLE androzoo_apks (sha256 varchar PRIMARY KEY, dex_date date, apk_size int,"
+                       " pkg_name varchar, version_code int, vt_detection int, vt_date date, dex_size int,"
+                       " markets varchar[]);")
+        db_connection.commit()
+        logger.info('Successfully created table "androzoo_apks"')
+    except db.Error:
+        db_connection.rollback()
+        cursor.execute("SELECT sha256 FROM androzoo_apks;")
+        apks = cursor.rowcount
+        logger.info(f'Table "androzoo_apks" was already present with {apks} rows')
+        return apks
+    start = time.monotonic_ns()
+    with gzip.open(filepath, 'rt') as csv_file:
+        count = 0
+        for row in csv.DictReader(csv_file, skipinitialspace=True):
+            if ',' in row['sha256']:
+                continue
+            cursor.execute(
+                "INSERT INTO androzoo_apks (sha256, dex_date, apk_size, pkg_name, version_code, vt_detection, vt_date,"
+                " dex_size, markets) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);",
+                (row['sha256'],
+                 row['dex_date'],
+                 int(row['apk_size']) if row['apk_size'] else None,
+                 row['pkg_name'],
+                 int(row['vercode']) if row['vercode'] else None,
+                 int(row['vt_detection']) if row['vt_detection'] else None,
+                 row['vt_scan_date'] if row['vt_scan_date'] else None,
+                 int(row['dex_size']) if row['dex_size'] else None,
+                 [market for market in row['markets'].split('|')]))
+            count += 1
+            if count % 1000 == 0:
+                logger.info(f'Completed {count} rows. Took {convert_time(time.monotonic_ns() - start)}')
+    db_connection.commit()
+    cursor.execute("SELECT sha256 FROM androzoo_apks;")
+    size = cursor.rowcount
+    cursor.close()
+    db_connection.close()
+    logger.info(f'Successfully populated "androzoo_apks" with {size} rows. Took'
+                f' {convert_time(time.monotonic_ns() - start)}.')
+    return size
+
+
+def create_random_sample(file_path):
+    sample_size = 500
+    bins = ['>30'] + [f'={num}' for num in range(30, 9, -1)]
+    try:
+        db_connection = db.connect(db_string)
+    except db.Error:
+        logger.fatal('Could not establish a connection to the database.')
+        sys.exit('Could not establish a connection to the database.')
+    cursor = db_connection.cursor()
+    with open(file_path, 'w') as file:
+        for cmp in bins:
+            cursor.execute(f"SELECT sha256 FROM androzoo_apks WHERE vt_detection{cmp};")
+            sample = random.sample(k=sample_size, population=[row[0] for row in cursor.fetchall()])
+            for s in sample:
+                file.write(f'{s}\n')
+    cursor.close()
+    db_connection.close()
+
+
+def store_random_sample(file_path):
+    try:
+        db_connection = db.connect(db_string)
+    except db.Error:
+        logger.fatal('Could not establish a connection to the database.')
+        sys.exit('Could not establish a connection to the database.')
+    cursor = db_connection.cursor()
+    cursor.execute("CREATE TABLE vt_samples (sha256 varchar PRIMARY KEY)")
+    with open(file_path, 'r') as file:
+        inserted = 0
+        for line in file:
+            cursor.execute("INSERT INTO vt_samples (sha256) VALUES (%s);", (line.strip()))
+            inserted += 1
+        logger.info(f'Inserted {inserted} rows into "vt_samples"')
+    db_connection.commit()
+    cursor.close()
+    db_connection.close()
+
+
+def create_db(args):
+    csv_file = download_csv()
+    populate(csv_file)
+    file_path = os.path.abspath(args.file)
+    if args.sample:
+        create_random_sample(file_path)
+    store_random_sample(file_path)
 
 
 def create():
@@ -32,17 +171,6 @@ def create():
         logger.fatal('Could not establish a connection to the database.')
         sys.exit('Could not establish a connection to the database.')
     cursor = db_connection.cursor()
-    try:
-        cursor.execute("CREATE TABLE androzoo_apks (sha256 varchar PRIMARY KEY, dex_date date, apk_size int,"
-                       " pkg_name varchar, version_code int, vt_detection int, vt_date date, dex_size int,"
-                       " markets varchar[]);")
-        db_connection.commit()
-        logger.info('Successfully created table "androzoo_apks"')
-    except db.Error:
-        db_connection.rollback()
-        cursor.execute("SELECT sha256 FROM androzoo_apks;")
-        apks = cursor.rowcount
-        logger.info(f'Table "androzoo_apks" was already present with {apks} rows')
     try:
         cursor.execute("CREATE TABLE google_play_apks (sha256 varchar PRIMARY KEY, dex_date date, apk_size int,"
                        " pkg_name varchar, version_code int, author varchar, category varchar, stars double precision,"
@@ -157,59 +285,6 @@ def create():
         logger.info(f'Table "method_bins" was already present with {cursor.rowcount} rows')
     cursor.close()
     db_connection.close()
-
-
-def populate(filepath):
-    """Populates the database with the contents of a .csv file.
-
-    The intended use is with a description of the AndroZoo dataset (https://androzoo.uni.lu/),
-    but any csv file with the correct columns will work.
-    Please refer to https://androzoo.uni.lu/lists for a documentation on the format.
-
-    Parameters
-    ----------
-    filepath : str
-        The path to a csv file containing the information to populate the database with.
-
-    Returns
-    -------
-    int
-        Number of rows in the table after population.
-    """
-    if filepath is None or filepath == '':
-        logger.error('No input file found.')
-        sys.exit('No input file found.')
-    if not os.path.isfile(filepath):
-        logger.error(f'File "{filepath}" not found.')
-        sys.exit(f'File "{filepath}" not found.')
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        sys.exit('Could not establish a connection to the database.')
-    cursor = db_connection.cursor()
-    start = time.time()
-    with open(filepath, 'r') as csv_file:
-        for row in csv.DictReader(csv_file, skipinitialspace=True):
-            cursor.execute(
-                "INSERT INTO androzoo_apks (sha256, dex_date, apk_size, pkg_name, version_code, vt_detection, vt_date,"
-                " dex_size, markets) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);",
-                (row['sha256'],
-                 row['dex_date'],
-                 int(row['apk_size']) if row['apk_size'] else None,
-                 row['pkg_name'],
-                 int(row['vercode']) if row['vercode'] else None,
-                 int(row['vt_detection']) if row['vt_detection'] else None,
-                 row['vt_scan_date'] if row['vt_scan_date'] else None,
-                 int(row['dex_size']) if row['dex_size'] else None,
-                 [market for market in row['markets'].split('|')]))
-    db_connection.commit()
-    cursor.execute("SELECT * FROM androzoo_apks;")
-    size = cursor.rowcount
-    cursor.close()
-    db_connection.close()
-    logger.info(f'Successfully populated "apks" with {size} rows. Took {time.time() - start}s')
-    return size
 
 
 def access(query, args=None):
