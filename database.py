@@ -37,7 +37,7 @@ def download_csv():
     return os.path.join(tmpdir, 'androzoo.csv.gz')
 
 
-def populate(filepath):
+def populate(filepath, db_connection):
     """Populates the database with the contents of a .csv file.
 
     The intended use is with a description of the AndroZoo dataset (https://androzoo.uni.lu/),
@@ -48,6 +48,7 @@ def populate(filepath):
     ----------
     filepath : str
         The path to a csv file containing the information to populate the database with.
+    db_connection : db.Connection
 
     Returns
     -------
@@ -60,11 +61,6 @@ def populate(filepath):
     if not os.path.isfile(filepath):
         logger.fatal(f'File "{filepath}" not found.')
         sys.exit(f'File "{filepath}" not found.')
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.fatal('Could not establish a connection to the database.')
-        sys.exit('Could not establish a connection to the database.')
     cursor = db_connection.cursor()
     try:
         cursor.execute("CREATE TABLE androzoo_apks (sha256 varchar PRIMARY KEY, dex_date date, apk_size int,"
@@ -76,8 +72,13 @@ def populate(filepath):
         db_connection.rollback()
         cursor.execute("SELECT sha256 FROM androzoo_apks;")
         apks = cursor.rowcount
-        logger.info(f'Table "androzoo_apks" was already present with {apks} rows')
-        return apks
+        logger.info(f'Table "androzoo_apks" was already present with {apks} rows but will be updated with new apks.')
+        cursor.execute("DROP TABLE androzoo_apks;")
+        cursor.execute("CREATE TABLE androzoo_apks (sha256 varchar PRIMARY KEY, dex_date date, apk_size int,"
+                       " pkg_name varchar, version_code int, vt_detection int, vt_date date, dex_size int,"
+                       " markets varchar[]);")
+        db_connection.commit()
+        logger.info('Successfully recreated table "androzoo_apks"')
     start = time.monotonic_ns()
     with gzip.open(filepath, 'rt') as csv_file:
         count = 0
@@ -86,7 +87,7 @@ def populate(filepath):
                 continue
             cursor.execute(
                 "INSERT INTO androzoo_apks (sha256, dex_date, apk_size, pkg_name, version_code, vt_detection, vt_date,"
-                " dex_size, markets) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);",
+                " dex_size, markets) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING;",
                 (row['sha256'],
                  row['dex_date'],
                  int(row['apk_size']) if row['apk_size'] else None,
@@ -97,63 +98,66 @@ def populate(filepath):
                  int(row['dex_size']) if row['dex_size'] else None,
                  [market for market in row['markets'].split('|')]))
             count += 1
-            if count % 1000 == 0:
+            if count % 10000 == 0:
                 logger.info(f'Completed {count} rows. Took {convert_time(time.monotonic_ns() - start)}')
     db_connection.commit()
     cursor.execute("SELECT sha256 FROM androzoo_apks;")
     size = cursor.rowcount
     cursor.close()
-    db_connection.close()
     logger.info(f'Successfully populated "androzoo_apks" with {size} rows. Took'
                 f' {convert_time(time.monotonic_ns() - start)}.')
     return size
 
 
-def create_random_sample(file_path):
+def create_random_sample(file_path, db_connection):
     sample_size = 500
     bins = ['>30'] + [f'={num}' for num in range(30, 9, -1)]
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.fatal('Could not establish a connection to the database.')
-        sys.exit('Could not establish a connection to the database.')
     cursor = db_connection.cursor()
     with open(file_path, 'w') as file:
         for cmp in bins:
             cursor.execute(f"SELECT sha256 FROM androzoo_apks WHERE vt_detection{cmp};")
-            sample = random.sample(k=sample_size, population=[row[0] for row in cursor.fetchall()])
+            sample = random.sample(k=min(sample_size, cursor.rowcount),
+                                   population=[row[0] for row in cursor.fetchall()])
             for s in sample:
                 file.write(f'{s}\n')
     cursor.close()
-    db_connection.close()
 
 
-def store_random_sample(file_path):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.fatal('Could not establish a connection to the database.')
-        sys.exit('Could not establish a connection to the database.')
+def store_random_sample(file_path, db_connection):
     cursor = db_connection.cursor()
-    cursor.execute("CREATE TABLE vt_samples (sha256 varchar PRIMARY KEY)")
+    try:
+        cursor.execute("CREATE TABLE vt_samples (sha256 varchar PRIMARY KEY);")
+    except db.Error:
+        db_connection.rollback()
+        cursor.execute("SELECT sha256 FROM vt_samples;")
+        logger.error(f'"vt_samples" already existed with {cursor.rowcount} rows, replacing with new random sample.')
+        cursor.close()
+        cursor.execute("DROP TABLE vt_samples;")
+        cursor.execute("CREATE TABLE vt_samples (sha256 varchar PRIMARY KEY);")
+        db_connection.commit()
     with open(file_path, 'r') as file:
         inserted = 0
         for line in file:
-            cursor.execute("INSERT INTO vt_samples (sha256) VALUES (%s);", (line.strip()))
+            cursor.execute("INSERT INTO vt_samples (sha256) VALUES (%s);", ((line.strip(),)))
             inserted += 1
         logger.info(f'Inserted {inserted} rows into "vt_samples"')
     db_connection.commit()
     cursor.close()
-    db_connection.close()
 
 
 def create_db(args):
+    try:
+        db_connection = db.connect(db_string)
+    except db.Error as error:
+        logger.fatal(f'Could not establish a connection to the database: {repr(error)}')
+        sys.exit(error)
     csv_file = download_csv()
-    populate(csv_file)
+    populate(csv_file, db_connection)
     file_path = os.path.abspath(args.file)
     if args.sample:
-        create_random_sample(file_path)
-    store_random_sample(file_path)
+        create_random_sample(file_path, db_connection)
+    store_random_sample(file_path, db_connection)
+    db_connection.close()
 
 
 def create():
@@ -168,7 +172,8 @@ def create():
     """
     try:
         db_connection = db.connect(db_string)
-    except db.Error:
+    except db.Error as error:
+        log_psycopg2_exception(error, logger)
         logger.fatal('Could not establish a connection to the database.')
         sys.exit('Could not establish a connection to the database.')
     cursor = db_connection.cursor()
