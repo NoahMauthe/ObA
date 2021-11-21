@@ -187,3 +187,5 @@ class AndrozooManager(Manager):
             self.vt_manager = Active(args.vt, args.quota)
         else:
             self.vt_manager = Dummy()
+        self.apk_manager.start()
+        self.start_workers()
