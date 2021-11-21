@@ -24,6 +24,8 @@ class AndrozooApkManager(ApkManager):
     def next_apk(self):
         try:
             sha256 = next(self.apks)
+            if not sha256:
+                return self.next_apk()
             directory = self.download(sha256)
             return sha256, directory, None, clean.androzoo_remnants
         except StopIteration:
