@@ -18,7 +18,8 @@ import cfganomaly
 import database
 from cfganomaly.cfganomaly import CfgAnomaly
 from method_parser import MethodParser, ParserError
-from utility.convenience import timeout_handler, extract, file_info, bin_name, VERBOSE, TIMEOUT, filter_type, MAX_MEM
+from utility.convenience import timeout_handler, extract, file_info, bin_name, VERBOSE, TIMEOUT, filter_type, MAX_MEM, \
+    convert_small_time
 
 
 class Worker(Process):
@@ -237,8 +238,7 @@ class Worker(Process):
             entropy, sha256, size = file_info(os.path.join(extracted, filename))
             files.append((sha256, entropy, file_type, size))
         database.store_files(self.current_sha256, files)
-        duration = time.monotonic_ns() - start
-        self.logger.log(VERBOSE, f'Checking all files took {duration / 1000000:.2f}ms')
+        self.logger.log(VERBOSE, f'Checking all files took {convert_small_time(time.monotonic_ns() - start)}')
 
     def filter_files(self, application):
         filtered = 0

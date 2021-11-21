@@ -38,6 +38,13 @@ def convert_time(nanoseconds):
     return f'{days:>2d}d {hours:>2d}h {minutes:>2d}m {seconds:>2d}s'
 
 
+def convert_small_time(nanoseconds):
+    milliseconds = nanoseconds // 1000000
+    seconds = milliseconds // 1000
+    milliseconds = milliseconds - seconds * 1000
+    return f'{seconds:>3d}s {milliseconds:>3d}ms'
+
+
 def extract(apk_path):
     """
 
