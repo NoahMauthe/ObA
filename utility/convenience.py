@@ -10,6 +10,7 @@ STATUS = 30
 TIMEOUT = 900
 WORKER_COUNT = len(os.sched_getaffinity(0))
 MAX_MEM = 5500000000
+MAX_RETRIES = 5
 
 byte_list = bytes([i for i in range(0, 256)])
 
@@ -82,6 +83,18 @@ def file_info(filename):
     entropy = shannon_entropy(content)
     size = os.path.getsize(filename)
     return entropy, sha256, size
+
+
+def log_psycopg2_exception(err, logger=None):
+    if logger is None:
+        logger = logging.getLogger('psycopg2')
+    err_type, err_obj, traceback = sys.exc_info()
+    line = traceback.tb_lineno
+    logger.error(f'{err} in line {line}\n'
+                 f'traceback:\t{traceback}\n'
+                 f'type:\t\t{err_type}\n'
+                 f'diag:\t\t{err.diag}\n'
+                 f'code:\t\t{err.pgcode}')
 
 
 def bin_name(size):

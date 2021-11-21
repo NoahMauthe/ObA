@@ -46,7 +46,7 @@ class Worker(Process):
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         soft, hard = getrlimit(RLIMIT_AS)
-        self.logger.log(VERBOSE, f'Initial memory limit was {soft}, {hard}. Restricting to {MAX_MEM}, {MAX_MEM * 1.5}')
+        self.logger.log(VERBOSE, f'Initial memory limit was {soft}, {hard}. Restricting to {MAX_MEM}, {MAX_MEM * 1.2}')
         setrlimit(RLIMIT_AS, (MAX_MEM, MAX_MEM * 1.5))
         while True:
             apk_info = self.apks.get()
@@ -377,9 +377,9 @@ class Worker(Process):
             self.success += 1
         except ParserError as error:
             self.parser_failed += 1
-            self.logger.log(VERBOSE, f'{method.full_name} failed parsing: {repr(error)}')
+            self.logger.debug(f'{method.full_name} failed parsing: {repr(error)}')
         except Exception as error:
-            self.logger.log(VERBOSE, f'{method.full_name} failed decompilation: {repr(error)}')
+            self.logger.debug(f'{method.full_name} failed decompilation: {repr(error)}')
             self.decompiler_failed += 1
         self.method_invocations[method] = method_invocations
         return method_invocations
