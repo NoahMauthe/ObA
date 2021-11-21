@@ -59,7 +59,7 @@ def create():
         cursor.execute("CREATE TABLE results (sha256 varchar PRIMARY KEY, permissions varchar[], libs int,"
                        " dex_loader int, class_loader int, reflection int, reflection_invocation int,"
                        " methods_total int, methods_success int, methods_decompiler_fail int,"
-                       " methods_parser_fail int, anomalies int, skipped int);")
+                       " methods_parser_fail int, analyzed int, anomalies int, skipped int);")
         db_connection.commit()
         logger.info('Successfully created table "results"')
     except db.Error:
@@ -505,7 +505,7 @@ def store_reflection_information(sha256, reflected_classes, reflected_methods):
         logger.fatal(f'Could not save reflection information for {sha256}')
 
 
-def store_anomaly_overview(sha256, anomalies, skipped):
+def store_anomaly_overview(sha256, analyzed, anomalies, skipped):
     try:
         db_connection = db.connect(db_string)
     except db.Error:
@@ -513,8 +513,8 @@ def store_anomaly_overview(sha256, anomalies, skipped):
         return
     cursor = db_connection.cursor()
     try:
-        cursor.execute("UPDATE results SET (anomalies, skipped) = (%s, %s) WHERE sha256 = %s;", (anomalies, skipped,
-                                                                                                 sha256))
+        cursor.execute("UPDATE results SET (analyzed, anomalies, skipped) = (%s, %s, %s) WHERE sha256 = %s;", (
+            analyzed, anomalies, skipped, sha256))
         db_connection.commit()
     except db.Error:
         db_connection.rollback()

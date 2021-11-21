@@ -282,10 +282,12 @@ class Worker(Process):
         anomalies = {}
         for i in indices:
             anomalies[str(method_analyses[i].full_name)] = scores[i]
-        self.logger.log(VERBOSE, f'Found {len(indices)} anomalies')
         database.store_anomalies(self.current_sha256, anomalies)
-        database.store_anomaly_overview(self.current_sha256, len(indices),
-                                        sum(1 if score == 1.0 else 0 for score in scores))
+        skipped = sum(1 if score == 1.0 else 0 for score in scores)
+        analyzed = sum(1 if score != 1.0 else 0 for score in scores)
+        self.logger.log(VERBOSE, f'Analyzed {analyzed} of {len(method_analyses)}, skipped {skipped}. Found'
+                                 f' {len(indices)} anomalies. Check: {analyzed + skipped == len(method_analyses)}')
+        database.store_anomaly_overview(self.current_sha256, analyzed, len(anomalies), skipped)
 
     def extract_invocations(self, method):
         method_invocations = self.method_invocations.get(method, {})
