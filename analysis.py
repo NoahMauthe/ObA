@@ -2,6 +2,7 @@ import logging
 import os
 
 import database
+import utility
 from manager import GplayManager, AndrozooManager
 from utility.convenience import VERBOSE, STATUS
 
@@ -32,6 +33,10 @@ def init_logging(arguments):
         database.db_string = arguments.db
     else:
         database.db_string = 'dbname=malware user=postgres host=0.0.0.0'
+    if arguments.worker:
+        utility.convenience.WORKER_COUNT = arguments.worker
+    else:
+        utility.convenience.WORKER_COUNT = len(os.sched_getaffinity(0))
     logging.getLogger('postgreSQL').info(f'Using dbstring "{database.db_string}".')
 
 
