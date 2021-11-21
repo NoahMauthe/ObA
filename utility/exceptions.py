@@ -3,6 +3,10 @@ class ObfuscationAnalysisException(BaseException):
     pass
 
 
+class ParserError(ObfuscationAnalysisException):
+    pass
+
+
 class ApkManagerException(ObfuscationAnalysisException):
     pass
 

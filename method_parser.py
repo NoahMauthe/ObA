@@ -1,10 +1,6 @@
 import logging
 
-from utility.exceptions import MalwareProjectException
-
-
-class ParserError(MalwareProjectException):
-    pass
+from utility.exceptions import ParserError
 
 
 class MethodParser:
