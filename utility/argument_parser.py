@@ -1,4 +1,5 @@
 import argparse
+import os
 
 from analysis import androzoo_analysis, gplay_analysis
 from database import create_db
@@ -10,7 +11,8 @@ def parse_args():
                         help='Specifies the global log level.')
     parent.add_argument('--logfile', type=str, help='Specifies the logfile to use. Will append, not overwrite')
     parent.add_argument('--db', type=str, help='Changes the default database string')
-    parent.add_argument('--worker', type=int, help='Changes the number of workers used.')
+    parent.add_argument('--worker', type=int, help='Changes the number of workers used.',
+                        default=len(os.sched_getaffinity(0)))
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
     create = subparsers.add_parser('createdb', help='Creates the database containing information gathered from'

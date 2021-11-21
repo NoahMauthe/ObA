@@ -13,8 +13,8 @@ from utility.exceptions import NoMoreApks
 
 class LocalApkManager(ApkManager):
 
-    def __init__(self, path, queue):
-        super().__init__(queue)
+    def __init__(self, path, queue, workers):
+        super().__init__(queue, workers)
         apks = fnmatch.filter(glob.iglob(os.path.join(path, '**'), recursive=True), '*.apk')
         done = set(e[0] for e in database.access('SELECT sha256 from results UNION SELECT sha256 from errors;'))
         self.logger.info(f'Found {len(done)} already processed apks.')

@@ -12,8 +12,8 @@ from utility.convenience import VERBOSE
 
 class AndrozooApkManager(ApkManager):
 
-    def __init__(self, api_key, queries, queue):
-        super().__init__(queue)
+    def __init__(self, api_key, queries, queue, workers):
+        super().__init__(queue, workers)
         with open(api_key, 'r') as key:
             self.key = key.read().strip()
         with open(queries, 'r') as q:

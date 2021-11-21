@@ -6,11 +6,9 @@ import shlex
 import sys
 from subprocess import check_output
 
-ENTROPY_THRESHOLD = 7.2
 VERBOSE = 15
 STATUS = 30
 TIMEOUT = 900
-WORKER_COUNT = 0
 MAX_MEM = 5500000000
 MAX_RETRIES = 5
 

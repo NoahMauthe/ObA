@@ -20,7 +20,7 @@ from utility.exceptions import DatabaseRetry
 logger = logging.getLogger('postgreSQL')
 logger.setLevel(logging.NOTSET)
 
-db_string = 'dbname=malware user=postgres host=0.0.0.0'
+db_string = None
 
 
 def download_csv():

@@ -6,9 +6,9 @@ from multiprocessing import Manager as VariableManager, Queue, RLock, current_pr
 from time import monotonic_ns, sleep
 
 import database
-from apk_managers.local import LocalApkManager
 from apk_managers.androzoo import AndrozooApkManager
-from utility.convenience import convert_time, VERBOSE, STATUS, WORKER_COUNT
+from apk_managers.local import LocalApkManager
+from utility.convenience import convert_time, VERBOSE, STATUS
 from vt_manager import Dummy, Active
 from worker import Worker
 
@@ -32,13 +32,14 @@ class Manager:
         self.memory = self.vm.Value(int, 0)
         self.stopped = self.vm.Value(bool, False)
         self.start_time = self.vm.Value(int, monotonic_ns())
+        self.worker_count = 0
 
     def init(self, _):
         self.logger.fatal('Not meant for direct calls, use GplayManager or AndrozooManager instead.')
         sys.exit(1)
 
     def start_workers(self):
-        for i in range(WORKER_COUNT):
+        for i in range(self.worker_count):
             name = f'Worker {"0" if i < 10 else ""}{i}'
             worker = Worker(name, self.apk_manager.queue, self)
             self.workers[name] = worker
@@ -166,10 +167,11 @@ class GplayManager(Manager):
         super().__init__()
 
     def init(self, args):
+        self.worker_count = args.worker
         database.create()
-        queue = Queue(WORKER_COUNT)
+        queue = Queue(args.worker)
         self.vt_manager = Dummy()
-        self.apk_manager = LocalApkManager(os.path.abspath(args.root), queue)
+        self.apk_manager = LocalApkManager(os.path.abspath(args.root), queue, args.worker)
         self.apk_manager.start()
         self.start_workers()
 
@@ -180,9 +182,10 @@ class AndrozooManager(Manager):
         super().__init__()
 
     def init(self, args):
+        self.worker_count = args.worker
         database.create()
-        queue = Queue(WORKER_COUNT)
-        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue)
+        queue = Queue(args.worker)
+        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue, args.worker)
         if args.vt:
             self.vt_manager = Active(args.vt, args.quota)
         else:

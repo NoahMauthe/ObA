@@ -1,17 +1,17 @@
 import logging
 from multiprocessing import Process
 
-from utility.convenience import WORKER_COUNT
 from utility.exceptions import NoMoreApks
 
 
 class ApkManager(Process):
 
-    def __init__(self, queue):
+    def __init__(self, queue, workers):
         super().__init__()
         self.queue = queue
         self.logger = logging.getLogger('ApkManager')
         self.logger.setLevel(logging.NOTSET)
+        self.workers = workers
 
     def run(self):
         while True:
@@ -19,7 +19,7 @@ class ApkManager(Process):
                 self.queue.put(self.next_apk())
             except NoMoreApks:
                 self.logger.info(f'No more apks left, exiting now.')
-                for i in range(WORKER_COUNT):
+                for i in range(self.workers):
                     self.queue.put(None)
                 break
         self.logger.info('Finished.')
