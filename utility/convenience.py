@@ -1,7 +1,9 @@
 import hashlib
+import logging
 import math
 import os
 import shlex
+import sys
 from subprocess import check_output
 
 ENTROPY_THRESHOLD = 7.2
