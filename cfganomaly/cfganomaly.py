@@ -1,4 +1,5 @@
 import json
+import logging
 import operator
 from collections import Counter
 from itertools import product
@@ -6,6 +7,7 @@ from itertools import product
 import numpy as np
 
 from compatibility.androguard import method2json_direct
+from utility.exceptions import CfgAnomalyError
 
 
 class BasicBlock:
@@ -255,12 +257,19 @@ class CfgAnomaly:
                     to_analyze.append(idx)
             idx += 1
 
-        vectors = np.array(vectors)
-        scores = self.model.score_samples(vectors)
+        scores = None
+        try:
+            vectors = np.array(vectors)
+            scores = self.model.score_samples(vectors)
+        except ValueError as error:
+            if len(to_analyze) != 0:
+                logging.getLogger('CFGANOMALY').error(repr(error))
+                raise CfgAnomalyError(error)
 
         # Create an array filled with 1.0, and then insert "real" scores for
         # those methods that needed analysis
         results = np.full(idx, 1.0)
-        results[to_analyze] = scores
+        if scores is not None:
+            results[to_analyze] = scores
 
         return results
