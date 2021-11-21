@@ -14,7 +14,8 @@ from subprocess import check_output, CalledProcessError
 import psycopg2 as db
 
 from compatibility.json import Encoder
-from utility.convenience import convert_time
+from utility.convenience import convert_time, log_psycopg2_exception
+from utility.exceptions import DatabaseRetry
 
 logger = logging.getLogger('postgreSQL')
 logger.setLevel(logging.NOTSET)
@@ -287,12 +288,13 @@ def create():
     db_connection.close()
 
 
-def access(query, args=None):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.fatal('Could not establish a connection to the database.')
-        sys.exit('Could not establish a connection to the database.')
+def access(query, args=None, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.fatal('Could not establish a connection to the database.')
+            return
     cursor = db_connection.cursor()
     if args:
         cursor.execute(query, args)
@@ -304,12 +306,15 @@ def access(query, args=None):
 
 
 def store_result(sha256, permissions, libraries, dex_loaders, class_loaders, reflection_access, reflection_invocations,
-                 method_count, methods_success, method_parser_failed, method_decompiler_failed):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.fatal('Could not establish a connection to the database.')
-        sys.exit('Could not establish a connection to the database.')
+                 method_count, methods_success, method_parser_failed, method_decompiler_failed, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.fatal('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_result, sha256, permissions, libraries, dex_loaders, class_loaders,
+                                reflection_access, reflection_invocations, method_count, methods_success,
+                                method_parser_failed, method_decompiler_failed)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO results (sha256, permissions, libs, dex_loader, class_loader, reflection,"
@@ -320,50 +325,60 @@ def store_result(sha256, permissions, libraries, dex_loaders, class_loaders, ref
                         reflection_invocations, method_count, methods_success, method_decompiler_failed,
                         method_parser_failed))
         db_connection.commit()
-        return
+        cursor.close()
     except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not store results for {sha256}: {repr(error)}')
+        cursor.close()
+        raise DatabaseRetry(error, store_result, sha256, permissions, libraries, dex_loaders, class_loaders, reflection_access,
+                            reflection_invocations, method_count, methods_success, method_parser_failed,
+                            method_decompiler_failed)
 
 
-def store_vt(sha256, vt_data):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_vt(sha256, vt_data, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_vt, sha256, vt_data)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO vt (sha256, vt) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, vt_data))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not store VirusTotal data for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_vt, sha256, vt_data)
 
 
-def store_vt_error(sha256, error):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_vt_error(sha256, error, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_vt_error, sha256, error)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO vt (sha256, error) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, error))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not store VirusTotal error for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_vt_error, sha256, error)
 
 
-def store_method_sizes(sha256, bins):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_method_sizes(sha256, bins, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_method_sizes, sha256, bins)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO method_bins (sha256, bin_empty, bin_1, bin_2, bin_3, bin_4, bin_5, bin_6, bin_7,"
@@ -384,18 +399,22 @@ def store_method_sizes(sha256, bins):
                        tuple([sha256] + [bins.get('bin_empty', 0)] +
                              list(bins.get(f'bin_{num}', 0) for num in range(1, 101))))
         db_connection.commit()
+        cursor.close()
     except db.Error as error:
         db_connection.rollback()
-        logger.error(error)
-        logger.fatal(f'Could not store method sizes for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_method_sizes, sha256, bins)
 
 
-def store_google_play_app(sha256, dex_date, size, pkg_name, version, author, category, stars, downloads, has_ads):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_google_play_app(sha256, dex_date, size, pkg_name, version, author, category, stars, downloads, has_ads,
+                          db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_google_play_app, sha256, dex_date, size, pkg_name, version, author, category, stars,
+                                downloads, has_ads)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO google_play_apks (sha256, dex_date, apk_size, pkg_name, version_code, author,"
@@ -403,36 +422,42 @@ def store_google_play_app(sha256, dex_date, size, pkg_name, version, author, cat
                        " CONFLICT DO NOTHING;",
                        (sha256, dex_date, size, pkg_name, version, author, category, stars, downloads, has_ads))
         db_connection.commit()
+        cursor.close()
     except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not store app info for Google Play app {sha256}')
-        logger.fatal(error)
+        cursor.close()
+        raise DatabaseRetry(error, store_google_play_app, sha256, dex_date, size, pkg_name, version, author, category, stars,
+                            downloads, has_ads)
 
 
-def store_library_access(sha256, loaded_libs):
+def store_library_access(sha256, loaded_libs, db_connection=None):
     logger.debug(f'{sha256} loads the following libs:\n{pprint.pformat(loaded_libs)}')
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_library_access, sha256, loaded_libs)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO accessed_classes (sha256, libraries) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, json.dumps(loaded_libs)))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save accessed libraries for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_library_access, sha256, loaded_libs)
 
 
-def store_dex_loader_access(sha256, dex_loaders):
-    logger.debug(f'{sha256} loads the following libs:\n{pprint.pformat(dex_loaders)}')
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_dex_loader_access(sha256, dex_loaders, db_connection=None):
+    logger.debug(f'{sha256} uses the following dex_loaders:\n{pprint.pformat(dex_loaders)}')
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_dex_loader_access, sha256, dex_loaders)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO dex_loaders (sha256, BaseDex, Dex, InMemory, Path, DelegateLast) VALUES"
@@ -444,49 +469,58 @@ def store_dex_loader_access(sha256, dex_loaders):
                         dex_loaders["Ldalvik/system/PathClassLoader;"],
                         dex_loaders["Ldalvik/system/DelegateLastClassLoader;"]))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save dex_loaders for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_dex_loader_access, sha256, dex_loaders)
 
 
-def full_error(sha256, error_str, partial=False):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def full_error(sha256, error_str, partial=False, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, full_error, sha256, error_str, partial)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO errors (sha256, error, partial) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, error_str, partial))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save errors for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, full_error, sha256, error_str, partial)
 
 
-def store_apkid_result(sha256, apkid):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_apkid_result(sha256, apkid, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_apkid_result, sha256, apkid)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO apkid (sha256, apkid) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, apkid))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save apkid result for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_apkid_result, sha256, apkid)
 
 
-def apkid_error(sha256, error, error_text):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def apkid_error(sha256, error, error_text, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, apkid_error, sha256, error, error_text)
     cursor = db_connection.cursor()
     try:
         if error_text:
@@ -496,99 +530,116 @@ def apkid_error(sha256, error, error_text):
         cursor.execute("INSERT INTO apkid (sha256, error) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, error_str))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save apkid errors for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, apkid_error, sha256, error, error_text)
 
 
-def store_class_loader_access(sha256, loaded_classes):
+def store_class_loader_access(sha256, loaded_classes, db_connection=None):
     logger.debug(f'{sha256} loads the following classes:\n{pprint.pformat(loaded_classes)}')
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+        raise DatabaseRetry(error, store_class_loader_access, sha256, loaded_classes)
     cursor = db_connection.cursor()
     try:
         cursor.execute("UPDATE accessed_classes SET loaded_classes = %s WHERE sha256 = %s;",
                        (json.dumps(loaded_classes), sha256))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save accessed classes for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_class_loader_access, sha256, loaded_classes)
 
 
-def store_files(application_sha256, files):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_files(sha256, files, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_files, sha256, files)
     cursor = db_connection.cursor()
     try:
-        for sha256, entropy, magic, size in files:
-            cursor.execute("INSERT INTO files (sha256, origin, entropy, magic, size) VALUES (%s, %s, %s, %s, %s)"
-                           " ON CONFLICT DO NOTHING;",
-                           (sha256, application_sha256, entropy, magic, size))
+        for file_sha256, file_name, entropy, magic, size in files:
+            cursor.execute("INSERT INTO files (sha256, origin, name, entropy, magic, size) VALUES"
+                           "(%s, %s, %s, %s, %s, %s) ON CONFLICT DO NOTHING;",
+                           (file_sha256, sha256, file_name, entropy, magic, size))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not store file information for {application_sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_files, sha256, files)
 
 
-def record_timeout(sha256, error):
-    full_error(sha256, error)
+def record_timeout(sha256, error, db_connection=None):
+    full_error(sha256, error, False, db_connection)
 
 
-def partial_error(sha256, error):
-    full_error(sha256, error, True)
+def partial_error(sha256, error, db_connection=None):
+    full_error(sha256, error, True, db_connection)
 
 
-def store_anomalies(sha256, anomalies):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_anomalies(sha256, anomalies, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_anomalies, sha256, anomalies)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO anomalies (sha256, anomalies) VALUES (%s, %s) ON CONFLICT DO NOTHING;",
                        (sha256, json.dumps(anomalies)))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
+        cursor.close()
         db_connection.rollback()
-        logger.fatal(f'Could not save anomalies errors for {sha256}')
+        raise DatabaseRetry(error, store_anomalies, sha256, anomalies)
 
 
-def store_reflection_information(sha256, reflected_classes, reflected_methods):
+def store_reflection_information(sha256, reflected_classes, reflected_methods, db_connection=None):
     logger.debug(f'{sha256} uses the following classes for reflection\n{pprint.pformat(reflected_classes)}')
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_reflection_information, sha256, reflected_classes, reflected_methods)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO reflection (sha256, reflected_classes, reflected_methods) VALUES (%s, %s, %s)"
                        " ON CONFLICT DO NOTHING;", (sha256, json.dumps(reflected_classes, cls=Encoder),
                                                     json.dumps(reflected_methods, cls=Encoder)))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not save reflection information for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_reflection_information, sha256, reflected_classes, reflected_methods)
 
 
-def store_anomaly_overview(sha256, analyzed, anomalies, skipped):
-    try:
-        db_connection = db.connect(db_string)
-    except db.Error:
-        logger.error('Could not establish a connection to the database.')
-        return
+def store_anomaly_overview(sha256, analyzed, anomalies, skipped, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_anomaly_overview, sha256, analyzed, anomalies, skipped)
     cursor = db_connection.cursor()
     try:
         cursor.execute("UPDATE results SET (analyzed, anomalies, skipped) = (%s, %s, %s) WHERE sha256 = %s;", (
             analyzed, anomalies, skipped, sha256))
         db_connection.commit()
-    except db.Error:
+        cursor.close()
+    except db.Error as error:
         db_connection.rollback()
-        logger.fatal(f'Could not update results with anomaly information for {sha256}')
+        cursor.close()
+        raise DatabaseRetry(error, store_anomaly_overview, sha256, analyzed, anomalies, skipped)

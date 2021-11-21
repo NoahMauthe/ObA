@@ -3,6 +3,7 @@ import gzip
 import logging
 import os
 import pickle
+import psycopg2 as db
 import signal
 import time
 from importlib.resources import files, as_file
@@ -19,7 +20,8 @@ import database
 from cfganomaly.cfganomaly import CfgAnomaly
 from method_parser import MethodParser, ParserError
 from utility.convenience import timeout_handler, extract, file_info, bin_name, VERBOSE, TIMEOUT, filter_type, MAX_MEM, \
-    convert_small_time
+    convert_small_time, MAX_RETRIES, log_psycopg2_exception
+from utility.exceptions import DatabaseRetry, CfgAnomalyError
 
 
 class Worker(Process):
@@ -38,6 +40,7 @@ class Worker(Process):
         self.manager = manager
         self.anomaly_detector = None
         self.model = files(cfganomaly).joinpath('cfganomaly-model.pickle.gz')
+        self.db_connection = db.connect(database.db_string)
 
     def run(self):
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -65,21 +68,35 @@ class Worker(Process):
                 signal.alarm(0)
                 self.logger.error(f'{sha256} timed out after {TIMEOUT}s.')
                 self.manager.report_timeout()
-                database.record_timeout(sha256, f'Timed out after {TIMEOUT}s.')
+                try:
+                    database.record_timeout(sha256, f'Timed out after {TIMEOUT}s.', self.db_connection)
+                except DatabaseRetry as error:
+                    self.logger.error(f'Failed to store timeout for {self.current_sha256}.')
+                    self.retry(error)
             except MemoryError:
                 self.method_invocations = {}
                 error = 'ran out of memory'
                 self.logger.error(f'{sha256} {error}.')
                 self.manager.report_memory()
-                database.full_error(sha256, error)
+                try:
+                    database.full_error(sha256, error, False, self.db_connection)
+                except DatabaseRetry as error:
+                    self.logger.error(f'Failed to store memory error for {self.current_sha256}.')
+                    self.retry(error)
                 self.manager.close(self.name)
                 break
             except Exception as error:
                 self.logger.error(f'{sha256} encountered an unexpected error: {repr(error)}.')
                 self.manager.report_error()
-                database.full_error(sha256, f'Encountered an unexpected error: {repr(error)}')
+                try:
+                    database.full_error(sha256, f'Encountered an unexpected error: {repr(error)}', False,
+                                        self.db_connection)
+                except DatabaseRetry as error:
+                    self.logger.error(f'Failed to store unexpected error for {self.current_sha256}.')
+                    self.retry(error)
             if post:
                 post(sha256, directory)
+        self.db_connection.close()
         self.logger.info('Finished.')
 
     def reset(self, sha256):
@@ -101,13 +118,25 @@ class Worker(Process):
     def check_packer(self, apk_path):
         try:
             output = check_output(['apkid', '-j', apk_path], stderr=DEVNULL).decode('UTF-8')
-            database.store_apkid_result(self.current_sha256, output)
+            try:
+                database.store_apkid_result(self.current_sha256, output, self.db_connection)
+            except DatabaseRetry as error:
+                self.logger.error(f'Failed to store apkid results for {self.current_sha256}.')
+                self.retry(error)
         except CalledProcessError as error:
             self.logger.error(f'{self.current_sha256}:\t apkid error:\t{repr(error)}')
-            database.apkid_error(self.current_sha256, repr(error), error.stderr)
+            try:
+                database.apkid_error(self.current_sha256, repr(error), error.stderr, self.db_connection)
+            except DatabaseRetry as error:
+                self.logger.error(f'Failed to store apkid error for {self.current_sha256}.')
+                self.retry(error)
         except RuntimeError as error:
             self.logger.error(f'{self.current_sha256}:\t apkid error:\t{repr(error)}')
-            database.apkid_error(self.current_sha256, repr(error), '')
+            try:
+                database.apkid_error(self.current_sha256, repr(error), '', self.db_connection)
+            except DatabaseRetry as error:
+                self.logger.error(f'Failed to store apkid error for {self.current_sha256}.')
+                self.retry(error)
         except KeyboardInterrupt:
             pass
 
@@ -122,9 +151,13 @@ class Worker(Process):
                                  f' used a critical method, {self.decompiler_failed} of which failed '
                                  f'decompilation and {self.parser_failed} failed parsing')
         permissions = list(set(application.get_permissions()))
-        database.store_result(self.current_sha256, permissions, library_loads, dex_loader_access, class_loader_access,
-                              reflection_access, reflection_invocations, total, self.success, self.parser_failed,
-                              self.decompiler_failed)
+        try:
+            database.store_result(self.current_sha256, permissions, library_loads, dex_loader_access,
+                                  class_loader_access, reflection_access, reflection_invocations, total, self.success,
+                                  self.parser_failed, self.decompiler_failed, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store result for {self.current_sha256}.')
+            self.retry(error)
 
     def check_library_loads(self, analysis):
         library_loads = {
@@ -145,7 +178,11 @@ class Worker(Process):
                         invocations = self.extract_invocations(callee)
                         for args in invocations.get(class_name, {}).get(method_name, []):
                             loaded_libs[args[-1]] = loaded_libs.get(args[-1], 0) + 1
-        database.store_library_access(self.current_sha256, loaded_libs)
+        try:
+            database.store_library_access(self.current_sha256, loaded_libs, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store library access for {self.current_sha256}.')
+            self.retry(error)
         return total
 
     def check_dex_loader_access(self, analysis):
@@ -166,7 +203,11 @@ class Worker(Process):
                 count = len(self.extract_calls(method))
                 dex_loaders[class_name] += count
                 total += count
-        database.store_dex_loader_access(self.current_sha256, dex_loaders)
+        try:
+            database.store_dex_loader_access(self.current_sha256, dex_loaders, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store the dex loader access for {self.current_sha256}.')
+            self.retry(error)
         return total
 
     def check_class_loader_access(self, analysis):
@@ -190,7 +231,11 @@ class Worker(Process):
                         for args in invocations.get(class_name, {}).get(method_name, []):
                             loaded_classes[args[1]] = loaded_classes.get(args[1], 0) + 1
                             total += 1
-        database.store_class_loader_access(self.current_sha256, loaded_classes)
+        try:
+            database.store_class_loader_access(self.current_sha256, loaded_classes, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store classloader access for {self.current_sha256}.')
+            self.retry(error)
         return total
 
     def check_reflection_calls(self, analysis):
@@ -222,7 +267,12 @@ class Worker(Process):
                     reflected_methods[args[0]] = class_
         invocations_count = sum(len(self.extract_calls(method)) for method in analysis.find_methods(
             classname='Ljava/lang/reflect/Method;', methodname='invoke'))
-        database.store_reflection_information(self.current_sha256, reflected_classes, reflected_methods)
+        try:
+            database.store_reflection_information(self.current_sha256, reflected_classes, reflected_methods,
+                                                  self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store reflection information overview for {self.current_sha256}.')
+            self.retry(error)
         return total, invocations_count
 
     def check_files(self, application, apk_path):
@@ -231,13 +281,21 @@ class Worker(Process):
             extracted = extract(apk_path)
         except (SubprocessError, RuntimeError) as e:
             self.logger.error(f'{self.current_sha256} failed unzipping:\n{repr(e)}')
-            database.partial_error(self.current_sha256, repr(e))
+            database.partial_error(self.current_sha256, repr(e), self.db_connection)
             return
         files = []
         for filename, file_type in self.filter_files(application):
-            entropy, sha256, size = file_info(os.path.join(extracted, filename))
-            files.append((sha256, entropy, file_type, size))
-        database.store_files(self.current_sha256, files)
+            path = os.path.join(extracted, filename)
+            if os.path.isfile(path):
+                entropy, sha256, size = file_info(path)
+                files.append((sha256, filename, entropy, file_type, size))
+            else:
+                self.logger.debug(f'Not a file: {path}')
+        try:
+            database.store_files(self.current_sha256, files, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store file information for {self.current_sha256}.')
+            self.retry(error)
         self.logger.log(VERBOSE, f'Checking all files took {convert_small_time(time.monotonic_ns() - start)}')
 
     def filter_files(self, application):
@@ -260,7 +318,11 @@ class Worker(Process):
         for method in methods:
             bin_id = bin_name(method.get_length())
             bins[bin_id] = bins.get(bin_id, 0) + 1
-        database.store_method_sizes(self.current_sha256, bins)
+        try:
+            database.store_method_sizes(self.current_sha256, bins, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store method sizes for {self.current_sha256}.')
+            self.retry(error)
         self.detect_anomalies(methods)
 
     def detect_anomalies(self, method_analyses, cutoff_score=-0.30):
@@ -273,21 +335,35 @@ class Worker(Process):
                 with gzip.open(self.model, 'rb') as f:
                     model = pickle.load(f)
             self.anomaly_detector = CfgAnomaly(model)
-
-        scores = self.anomaly_detector.get_anomaly_scores(method_analyses)
-
+        try:
+            scores = self.anomaly_detector.get_anomaly_scores(method_analyses)
+        except CfgAnomalyError as error:
+            try:
+                database.partial_error(self.current_sha256, repr(error.error), self.db_connection)
+            except DatabaseRetry as db_error:
+                self.logger.error(f'Failed to store CfgAnomalyError for {self.current_sha256}.')
+                self.retry(db_error)
+            return
         # Store methods whose anomaly scores fall under the threshold
         # (i.e., the most anomalous methods)
         indices = np.flatnonzero(scores < cutoff_score)
         anomalies = {}
         for i in indices:
             anomalies[str(method_analyses[i].full_name)] = scores[i]
-        database.store_anomalies(self.current_sha256, anomalies)
+        try:
+            database.store_anomalies(self.current_sha256, anomalies, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store anomalies for {self.current_sha256}.')
+            self.retry(error)
         skipped = sum(1 if score == 1.0 else 0 for score in scores)
         analyzed = sum(1 if score != 1.0 else 0 for score in scores)
         self.logger.log(VERBOSE, f'Analyzed {analyzed} of {len(method_analyses)}, skipped {skipped}. Found'
                                  f' {len(indices)} anomalies. Check: {analyzed + skipped == len(method_analyses)}')
-        database.store_anomaly_overview(self.current_sha256, analyzed, len(anomalies), skipped)
+        try:
+            database.store_anomaly_overview(self.current_sha256, analyzed, len(anomalies), skipped, self.db_connection)
+        except DatabaseRetry as error:
+            self.logger.error(f'Failed to store the anomaly overview for {self.current_sha256}.')
+            self.retry(error)
 
     def extract_invocations(self, method):
         method_invocations = self.method_invocations.get(method, {})
@@ -307,3 +383,14 @@ class Worker(Process):
             self.decompiler_failed += 1
         self.method_invocations[method] = method_invocations
         return method_invocations
+
+    def retry(self, error, count=0):
+        log_psycopg2_exception(error.error, self.logger)
+        if count > MAX_RETRIES:
+            self.logger.fatal(f'Failed to access database for the {count}th time. Skipping this step.')
+            return
+        try:
+            time.sleep(10)
+            error.func(*error.args)
+        except DatabaseRetry as error:
+            self.retry(error, count + 1)
