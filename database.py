@@ -110,7 +110,7 @@ def populate(filepath, db_connection):
 
 
 def create_random_sample(file_path, db_connection):
-    sample_size = 500
+    sample_size = 250
     bins = ['>30'] + [f'={num}' for num in range(30, 9, -1)]
     cursor = db_connection.cursor()
     with open(file_path, 'w') as file:
