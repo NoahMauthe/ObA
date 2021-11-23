@@ -6,7 +6,7 @@ from database import create_db
 
 
 def parse_args():
-    parent = argparse.ArgumentParser(add_help=False)
+    parent = argparse.ArgumentParser(add_help=False, description='Obfuscation Analysis Tool')
     parent.add_argument('--loglevel', choices=['info', 'verbose', 'debug'], default='info',
                         help='Specifies the global log level.')
     parent.add_argument('--logfile', type=str, help='Specifies the logfile to use. Will append, not overwrite')
@@ -14,6 +14,7 @@ def parse_args():
     parent.add_argument('--worker', type=int, help='Changes the number of workers used.',
                         default=len(os.sched_getaffinity(0)))
     parser = argparse.ArgumentParser()
+    parser.add_argument('--version', action='store_true', help='Displays the version number and exits')
     subparsers = parser.add_subparsers()
     create = subparsers.add_parser('createdb', help='Creates the database containing information gathered from'
                                                     ' the androzoo dataset.', parents=[parent])
