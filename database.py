@@ -151,7 +151,12 @@ def create_db(args):
     except db.Error as error:
         logger.fatal(f'Could not establish a connection to the database: {repr(error)}')
         sys.exit(error)
-    csv_file = download_csv()
+    if args.local:
+        csv_file = os.path.abspath(args.local)
+        if not os.path.isfile(csv_file):
+            sys.exit(f'Specified file {csv_file} is not a file!')
+    else:
+        csv_file = download_csv()
     populate(csv_file, db_connection)
     file_path = os.path.abspath(args.file)
     if args.sample:

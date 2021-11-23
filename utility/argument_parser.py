@@ -17,6 +17,8 @@ def parse_args():
     subparsers = parser.add_subparsers()
     create = subparsers.add_parser('createdb', help='Creates the database containing information gathered from'
                                                     ' the androzoo dataset.', parents=[parent])
+    create.add_argument('--local', type=str, default=None, help='specifies a local csv file to use instead of '
+                                                                'downloading a new one.')
     create.set_defaults(func=create_db)
     create.add_argument('--sample', action='store_true', default=False, help='If set, creates a random sample and saves'
                                                                              ' it to "file". Otherwise the contents of'
