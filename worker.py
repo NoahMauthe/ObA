@@ -258,13 +258,14 @@ class Worker(Process):
                     for args in self.extract_invocations(caller).get(class_name, {}).get(method_name, []):
                         reflected_classes[args[index]] = reflected_classes.get(args[index], 0) + 1
         class_name = 'Ljava/lang/Class;'
-        method_name = 'getMethod'
-        for method in analysis.find_methods(classname=class_name, methodname=method_name):
-            for caller in self.extract_calls(method):
-                for args in self.extract_invocations(caller).get(class_name, {}).get(method_name, []):
-                    class_ = reflected_methods.get(args[0], {})
-                    class_[args[1]] = class_.get(args[1], 0) + 1
-                    reflected_methods[args[0]] = class_
+        method_names = ['getMethod', 'getDeclaredMethod']
+        for method_name in method_names:
+            for method in analysis.find_methods(classname=class_name, methodname=method_name):
+                for caller in self.extract_calls(method):
+                    for args in self.extract_invocations(caller).get(class_name, {}).get(method_name, []):
+                        class_ = reflected_methods.get(args[0], {})
+                        class_[args[1]] = class_.get(args[1], 0) + 1
+                        reflected_methods[args[0]] = class_
         invocations_count = sum(len(self.extract_calls(method)) for method in analysis.find_methods(
             classname='Ljava/lang/reflect/Method;', methodname='invoke'))
         try:
