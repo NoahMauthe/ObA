@@ -27,6 +27,12 @@ def parse_args():
     create.add_argument('file', help='The file to take the samples from / store the samples in.')
     androzoo = subparsers.add_parser('androzoo', help='Runs the analysis on apps from the androzoo dataset.',
                                      parents=[parent])
+    androzoo.add_argument('--repeat', action='store_true', help='If set, the queries read from file will be retried if'
+                                                                ' they have all been processed.\n'
+                                                                'WARNING: Make sure your queries filter out already'
+                                                                'processed applications when using this options,'
+                                                                'otherwise the analysis will run indefinitely',
+                          default=False)
     androzoo.add_argument('--vt', type=str, help='Specifies location of VirusTotal API Key', default=None)
     androzoo.add_argument('--vt-quota', dest='quota', type=int, help='Specifies the VirusTotal API quota already used',
                           default=0)

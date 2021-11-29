@@ -185,7 +185,7 @@ class AndrozooManager(Manager):
         self.worker_count = args.worker
         database.create()
         queue = Queue(args.worker)
-        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue, args.worker)
+        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue, args.worker, args.repeat)
         if args.vt:
             self.vt_manager = Active(args.vt, args.quota)
         else:

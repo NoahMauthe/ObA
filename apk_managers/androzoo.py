@@ -12,20 +12,24 @@ from utility.convenience import VERBOSE
 
 class AndrozooApkManager(ApkManager):
 
-    def __init__(self, api_key, queries, queue, workers):
+    def __init__(self, api_key, queries, queue, workers, repeat):
         super().__init__(queue, workers)
         with open(api_key, 'r') as key:
             self.key = key.read().strip()
         with open(queries, 'r') as q:
             self.queries = iter(q.read().strip().split(os.linesep))
+        self.query_file = queries
         self.query = None
         self.apks = iter([])
+        self.query_yield = 0
+        self.repeat = repeat
 
     def next_apk(self):
         try:
             sha256 = next(self.apks)
             if not sha256:
                 return self.next_apk()
+            self.query_yield += 1
             directory = self.download(sha256)
             return sha256, directory, None, clean.androzoo_remnants
         except StopIteration:
@@ -41,8 +45,17 @@ class AndrozooApkManager(ApkManager):
             self.query = next(self.queries)
             self.logger.info(f'Previous query had no more apks, continuing with the following query:\n\t{self.query}')
             self.apks = iter([row[0] for row in database.access(self.query)])
+            return
         except StopIteration:
-            raise NoMoreApks
+            if not self.repeat or self.query_yield == 0:
+                raise NoMoreApks
+            if self.query_yield == 0:
+                self.logger.info('Previous iteration had no new apks, stopping loop.')
+                raise NoMoreApks
+        self.logger.info('Rerunning all queries to look for new results.')
+        with open(self.query_file, 'r') as q:
+            self.queries = iter(q.read().strip().split(os.linesep))
+        self.query_yield = 0
 
     def download(self, sha256):
         tmpdir = tempfile.mkdtemp()
