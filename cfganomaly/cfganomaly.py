@@ -215,7 +215,7 @@ class CfgAnomaly:
     def __init__(self,
                  model,
                  max_n=5,
-                 min_size=300,
+                 min_size=600,
                  min_bb_count=30):
         self.model = model
         self.max_n = max_n
@@ -238,6 +238,7 @@ class CfgAnomaly:
       """
         to_analyze = []
         vectors = []
+
         idx = 0
         for method in method_analyses:
             dalvik_code = method.method.get_code()
@@ -263,7 +264,7 @@ class CfgAnomaly:
             scores = self.model.score_samples(vectors)
         except ValueError as error:
             if len(to_analyze) != 0:
-                logging.getLogger('CFGANOMALY').error(repr(error))
+                logging.getLogger('cfgAnomaly').error(repr(error))
                 raise CfgAnomalyError(error)
 
         # Create an array filled with 1.0, and then insert "real" scores for
