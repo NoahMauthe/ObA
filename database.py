@@ -282,28 +282,6 @@ def create():
         db_connection.rollback()
         cursor.execute("SELECT sha256 FROM dex_loaders;")
         logger.info(f'Table "dex_loaders" was already present with {cursor.rowcount} rows')
-    try:
-        cursor.execute("CREATE TABLE method_bins (sha256 varchar PRIMARY KEY, bin_empty int, bin_1 int, bin_2 int,"
-                       " bin_3 int, bin_4 int, bin_5 int, bin_6 int, bin_7 int, bin_8 int, bin_9 int, bin_10 int,"
-                       " bin_11 int, bin_12 int, bin_13 int, bin_14 int, bin_15 int, bin_16 int, bin_17 int,"
-                       " bin_18 int, bin_19 int, bin_20 int, bin_21 int, bin_22 int, bin_23 int, bin_24 int,"
-                       " bin_25 int, bin_26 int, bin_27 int, bin_28 int, bin_29 int, bin_30 int, bin_31 int,"
-                       " bin_32 int, bin_33 int, bin_34 int, bin_35 int, bin_36 int, bin_37 int, bin_38 int,"
-                       " bin_39 int, bin_40 int, bin_41 int, bin_42 int, bin_43 int, bin_44 int, bin_45 int,"
-                       " bin_46 int, bin_47 int, bin_48 int, bin_49 int, bin_50 int, bin_51 int, bin_52 int,"
-                       " bin_53 int, bin_54 int, bin_55 int, bin_56 int, bin_57 int, bin_58 int, bin_59 int,"
-                       " bin_60 int, bin_61 int, bin_62 int, bin_63 int, bin_64 int, bin_65 int, bin_66 int,"
-                       " bin_67 int, bin_68 int, bin_69 int, bin_70 int, bin_71 int, bin_72 int, bin_73 int,"
-                       " bin_74 int, bin_75 int, bin_76 int, bin_77 int, bin_78 int, bin_79 int, bin_80 int,"
-                       " bin_81 int, bin_82 int, bin_83 int, bin_84 int, bin_85 int, bin_86 int, bin_87 int,"
-                       " bin_88 int, bin_89 int, bin_90 int, bin_91 int, bin_92 int, bin_93 int, bin_94 int,"
-                       " bin_95 int, bin_96 int, bin_97 int, bin_98 int, bin_99 int, bin_100 int);")
-        db_connection.commit()
-        logger.info('Successfully created table "method_bins"')
-    except db.Error:
-        db_connection.rollback()
-        cursor.execute("SELECT sha256 FROM method_bins;")
-        logger.info(f'Table "method_bins" was already present with {cursor.rowcount} rows')
     cursor.close()
     db_connection.close()
 
@@ -349,9 +327,9 @@ def store_result(sha256, permissions, libraries, dex_loaders, class_loaders, ref
     except db.Error as error:
         db_connection.rollback()
         cursor.close()
-        raise DatabaseRetry(error, store_result, sha256, permissions, libraries, dex_loaders, class_loaders, reflection_access,
-                            reflection_invocations, method_count, methods_success, method_parser_failed,
-                            method_decompiler_failed)
+        raise DatabaseRetry(error, store_result, sha256, permissions, libraries, dex_loaders, class_loaders,
+                            reflection_access, reflection_invocations, method_count, methods_success,
+                            method_parser_failed, method_decompiler_failed)
 
 
 def store_vt(sha256, vt_data, db_connection=None):
@@ -392,40 +370,6 @@ def store_vt_error(sha256, error, db_connection=None):
         raise DatabaseRetry(error, store_vt_error, sha256, error)
 
 
-def store_method_sizes(sha256, bins, db_connection=None):
-    if db_connection is None:
-        try:
-            db_connection = db.connect(db_string)
-        except db.Error as error:
-            logger.error('Could not establish a connection to the database.')
-            raise DatabaseRetry(error, store_method_sizes, sha256, bins)
-    cursor = db_connection.cursor()
-    try:
-        cursor.execute("INSERT INTO method_bins (sha256, bin_empty, bin_1, bin_2, bin_3, bin_4, bin_5, bin_6, bin_7,"
-                       " bin_8, bin_9, bin_10, bin_11, bin_12, bin_13, bin_14, bin_15, bin_16, bin_17, bin_18, bin_19,"
-                       " bin_20, bin_21, bin_22, bin_23, bin_24, bin_25, bin_26, bin_27, bin_28, bin_29, bin_30,"
-                       " bin_31, bin_32, bin_33, bin_34, bin_35, bin_36, bin_37, bin_38, bin_39, bin_40, bin_41,"
-                       " bin_42, bin_43, bin_44, bin_45, bin_46, bin_47, bin_48, bin_49, bin_50, bin_51, bin_52,"
-                       " bin_53, bin_54, bin_55, bin_56, bin_57, bin_58, bin_59, bin_60, bin_61, bin_62, bin_63,"
-                       " bin_64, bin_65, bin_66, bin_67, bin_68, bin_69, bin_70, bin_71, bin_72, bin_73, bin_74,"
-                       " bin_75, bin_76, bin_77, bin_78, bin_79, bin_80, bin_81, bin_82, bin_83, bin_84, bin_85,"
-                       " bin_86, bin_87, bin_88, bin_89, bin_90, bin_91, bin_92, bin_93, bin_94, bin_95, bin_96,"
-                       " bin_97, bin_98, bin_99, bin_100) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
-                       " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
-                       " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
-                       " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,"
-                       " %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT"
-                       " DO NOTHING;",
-                       tuple([sha256] + [bins.get('bin_empty', 0)] +
-                             list(bins.get(f'bin_{num}', 0) for num in range(1, 101))))
-        db_connection.commit()
-        cursor.close()
-    except db.Error as error:
-        db_connection.rollback()
-        cursor.close()
-        raise DatabaseRetry(error, store_method_sizes, sha256, bins)
-
-
 def store_google_play_app(sha256, dex_date, size, pkg_name, version, author, category, stars, downloads, has_ads,
                           db_connection=None):
     if db_connection is None:
@@ -433,8 +377,8 @@ def store_google_play_app(sha256, dex_date, size, pkg_name, version, author, cat
             db_connection = db.connect(db_string)
         except db.Error as error:
             logger.error('Could not establish a connection to the database.')
-            raise DatabaseRetry(error, store_google_play_app, sha256, dex_date, size, pkg_name, version, author, category, stars,
-                                downloads, has_ads)
+            raise DatabaseRetry(error, store_google_play_app, sha256, dex_date, size, pkg_name, version, author,
+                                category, stars, downloads, has_ads)
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO google_play_apks (sha256, dex_date, apk_size, pkg_name, version_code, author,"
@@ -446,8 +390,8 @@ def store_google_play_app(sha256, dex_date, size, pkg_name, version, author, cat
     except db.Error as error:
         db_connection.rollback()
         cursor.close()
-        raise DatabaseRetry(error, store_google_play_app, sha256, dex_date, size, pkg_name, version, author, category, stars,
-                            downloads, has_ads)
+        raise DatabaseRetry(error, store_google_play_app, sha256, dex_date, size, pkg_name, version, author, category,
+                            stars, downloads, has_ads)
 
 
 def store_library_access(sha256, loaded_libs, db_connection=None):

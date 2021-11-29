@@ -14,6 +14,7 @@ from subprocess import SubprocessError, check_output, CalledProcessError, DEVNUL
 import numpy as np
 from androguard.decompiler.dad.decompile import DvMethod
 from androguard.misc import AnalyzeAPK
+from numpy.lib.format import write_array
 
 import cfganomaly
 import database
@@ -26,7 +27,7 @@ from utility.exceptions import DatabaseRetry, CfgAnomalyError
 
 class Worker(Process):
 
-    def __init__(self, name, apks, manager):
+    def __init__(self, name, apks, manager, out_dir):
         super(Worker, self).__init__()
         self.name = name
         self.apks = apks
@@ -41,6 +42,7 @@ class Worker(Process):
         self.anomaly_detector = None
         self.model = files(cfganomaly).joinpath('cfganomaly-model.pickle.gz')
         self.db_connection = db.connect(database.db_string)
+        self.out_dir = out_dir
 
     def run(self):
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -314,16 +316,12 @@ class Worker(Process):
         return calls
 
     def check_methods(self, analysis):
-        bins = dict()
         methods = [method for method in analysis.get_methods() if not method.is_external()]
-        for method in methods:
-            bin_id = bin_name(method.get_length())
-            bins[bin_id] = bins.get(bin_id, 0) + 1
-        try:
-            database.store_method_sizes(self.current_sha256, bins, self.db_connection)
-        except DatabaseRetry as error:
-            self.logger.error(f'Failed to store method sizes for {self.current_sha256}.')
-            self.retry(error)
+        sizes = [method.get_method().get_length() for method in methods]
+        arr = np.array(sizes, dtype=np.int32)
+        filename = self.current_sha256 + '.npy.gz'
+        with gzip.open(os.path.join(self.out_dir, filename), 'wb') as f:
+            write_array(f, arr)
         self.detect_anomalies(methods)
 
     def detect_anomalies(self, method_analyses, cutoff_score=-0.30):

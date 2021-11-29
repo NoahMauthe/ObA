@@ -36,12 +36,14 @@ def parse_args():
     androzoo.add_argument('--vt', type=str, help='Specifies location of VirusTotal API Key', default=None)
     androzoo.add_argument('--vt-quota', dest='quota', type=int, help='Specifies the VirusTotal API quota already used',
                           default=0)
+    androzoo.add_argument('out', type=str, help='The directory to save method size information to.')
     androzoo.add_argument('key', type=str, help='Specifies the location of the androzoo key file.')
     androzoo.add_argument('queries', type=str, help='Specifies a file containing SQL queries that determine which files'
                                                     ' will be analyzed')
     androzoo.set_defaults(func=androzoo_analysis)
     gplay = subparsers.add_parser('gplay', help='Runs the analysis on local apps from the GooglePlay dataset.',
                                   parents=[parent])
+    gplay.add_argument('out', type=str, help='The directory to save method size information to.')
     gplay.add_argument('root', type=str, help='Specifies the directory root of all .apk files.')
     gplay.set_defaults(func=gplay_analysis)
     return parser.parse_args()

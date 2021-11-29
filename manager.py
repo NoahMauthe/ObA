@@ -33,6 +33,7 @@ class Manager:
         self.stopped = self.vm.Value(bool, False)
         self.start_time = self.vm.Value(int, monotonic_ns())
         self.worker_count = 0
+        self.out_dir = None
 
     def init(self, _):
         self.logger.fatal('Not meant for direct calls, use GplayManager or AndrozooManager instead.')
@@ -41,7 +42,7 @@ class Manager:
     def start_workers(self):
         for i in range(self.worker_count):
             name = f'Worker {"0" if i < 10 else ""}{i}'
-            worker = Worker(name, self.apk_manager.queue, self)
+            worker = Worker(name, self.apk_manager.queue, self, self.out_dir)
             self.workers[name] = worker
             worker.start()
             self.logger.log(VERBOSE, f'Started {name}')
@@ -155,7 +156,7 @@ class Manager:
                     worker.join()
                     worker.close()
                 self.workers[name] = None
-                new_worker = Worker(name, self.apk_manager.queue, self)
+                new_worker = Worker(name, self.apk_manager.queue, self, self.out_dir)
                 self.workers[name] = new_worker
                 new_worker.start()
                 self.logger.info(f'Restarted {name} with pid {new_worker.pid}')
@@ -168,6 +169,7 @@ class GplayManager(Manager):
 
     def init(self, args):
         self.worker_count = args.worker
+        self.out_dir = args.out
         database.create()
         queue = Queue(args.worker)
         self.vt_manager = Dummy()
@@ -183,6 +185,7 @@ class AndrozooManager(Manager):
 
     def init(self, args):
         self.worker_count = args.worker
+        self.out_dir = args.out
         database.create()
         queue = Queue(args.worker)
         self.apk_manager = AndrozooApkManager(args.key, args.queries, queue, args.worker, args.repeat)
