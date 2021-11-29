@@ -6,6 +6,7 @@ import os
 import pprint
 import random
 import shlex
+import shutil
 import sys
 import tempfile
 import time
@@ -106,6 +107,15 @@ def populate(filepath, db_connection):
     cursor.close()
     logger.info(f'Successfully populated "androzoo_apks" with {size} rows. Took'
                 f' {convert_time(time.monotonic_ns() - start)}.')
+    try:
+        directory = os.path.dirname(csv_file)
+        if directory.startswith('/tmp'):
+            shutil.rmtree(directory, ignore_errors=True)
+            logger.info('Successfully removed csv file after population.')
+        else:
+            logger.info(f'{directory} is not a tmp-directory, skipping removal.')
+    except Exception as error:
+        logger.error(f'Removing csv file failed: {repr(error)}')
     return size
 
 
