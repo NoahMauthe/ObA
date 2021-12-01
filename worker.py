@@ -253,12 +253,12 @@ class Worker(Process):
                 calls = len(self.extract_calls(method))
                 reflection_api_accesses[class_.name] = reflection_api_accesses.get(class_.name, 0) + calls
                 total += calls
-        triples = [('Ljava/lang/Class;', 'forName', 1), ('Ljava/lang/Object;', 'getClass', 0)]
-        for class_name, method_name, index in triples:
-            for method in analysis.find_methods(classname=class_name, methodname=method_name):
-                for caller in self.extract_calls(method):
-                    for args in self.extract_invocations(caller).get(class_name, {}).get(method_name, []):
-                        reflected_classes[args[index]] = reflected_classes.get(args[index], 0) + 1
+        class_name = 'Ljava/lang/Class;'
+        method_name = 'forName'
+        for method in analysis.find_methods(classname=class_name, methodname=method_name):
+            for caller in self.extract_calls(method):
+                for args in self.extract_invocations(caller).get(class_name, {}).get(method_name, []):
+                    reflected_classes[args[1]] = reflected_classes.get(args[1], 0) + 1
         class_name = 'Ljava/lang/Class;'
         method_names = ['getMethod', 'getDeclaredMethod']
         for method_name in method_names:
