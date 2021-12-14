@@ -282,6 +282,14 @@ def create():
         db_connection.rollback()
         cursor.execute("SELECT sha256 FROM dex_loaders;")
         logger.info(f'Table "dex_loaders" was already present with {cursor.rowcount} rows')
+    try:
+        cursor.execute("CREATE TABLE fdroid (sha256 varchar PRIMARY KEY, name varchar, version int);")
+        db_connection.commit()
+        logger.info('Successfully created table "fdroid"')
+    except db.Error:
+        db_connection.rollback()
+        cursor.execute("SELECT sha256 FROM fdroid;")
+        logger.info(f'Table "fdroid" was already present with {cursor.rowcount} rows')
     cursor.close()
     db_connection.close()
 
@@ -607,3 +615,26 @@ def store_anomaly_overview(sha256, analyzed, anomalies, skipped, db_connection=N
         db_connection.rollback()
         cursor.close()
         raise DatabaseRetry(error, store_anomaly_overview, sha256, analyzed, anomalies, skipped)
+
+
+def store_fdroid_app(sha256, package_name, version, db_connection=None):
+    if db_connection is None:
+        try:
+            db_connection = db.connect(db_string)
+        except db.Error as error:
+            logger.error('Could not establish a connection to the database.')
+            raise DatabaseRetry(error, store_fdroid_app, sha256, package_name, version)
+    cursor = db_connection.cursor()
+    try:
+        cursor.execute("INSERT INTO fdroid (sha256, name, version) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING;",
+                       sha256, package_name, int(version))
+        db_connection.commit()
+        cursor.close()
+    except db.Error as error:
+        db_connection.rollback()
+        cursor.close()
+        raise DatabaseRetry(error, store_fdroid_app, sha256, package_name, version)
+
+
+def store_fdroid_hash(sha256):
+    store_fdroid_app(sha256, None, None)

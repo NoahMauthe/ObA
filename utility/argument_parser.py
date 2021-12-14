@@ -1,12 +1,13 @@
 import argparse
 import os
 
-from analysis import androzoo_analysis, gplay_analysis
+from analysis import androzoo_analysis, gplay_analysis, fdroid_analysis
 from database import create_db
+from main import VERSION
 
 
 def parse_args():
-    parent = argparse.ArgumentParser(add_help=False, description='Obfuscation Analysis Tool')
+    parent = argparse.ArgumentParser(add_help=False, description=f'Obfuscation Analysis Tool v{VERSION}')
     parent.add_argument('--loglevel', choices=['info', 'verbose', 'debug'], default='info',
                         help='Specifies the global log level.')
     parent.add_argument('--logfile', type=str, help='Specifies the logfile to use. Will append, not overwrite')
@@ -46,4 +47,9 @@ def parse_args():
     gplay.add_argument('out', type=str, help='The directory to save method size information to.')
     gplay.add_argument('root', type=str, help='Specifies the directory root of all .apk files.')
     gplay.set_defaults(func=gplay_analysis)
+    fdroid = subparsers.add_parser('fdroid', help='Runs the analysis on local apps from the GooglePlay dataset.',
+                                   parents=[parent])
+    fdroid.add_argument('out', type=str, help='The directory to save method size information to.')
+    fdroid.add_argument('root', type=str, help='Specifies the directory root of all .apk files.')
+    fdroid.set_defaults(func=fdroid_analysis)
     return parser.parse_args()

@@ -7,7 +7,7 @@ from time import monotonic_ns, sleep
 
 import database
 from apk_managers.androzoo import AndrozooApkManager
-from apk_managers.local import LocalApkManager
+from apk_managers.local import GplayApkManager, FDroidApkManager
 from utility.convenience import convert_time, VERBOSE, STATUS
 from vt_manager import Dummy, Active
 from worker import Worker
@@ -173,7 +173,23 @@ class GplayManager(Manager):
         database.create()
         queue = Queue(args.worker)
         self.vt_manager = Dummy()
-        self.apk_manager = LocalApkManager(os.path.abspath(args.root), queue, args.worker)
+        self.apk_manager = GplayApkManager(os.path.abspath(args.root), queue, args.worker)
+        self.apk_manager.start()
+        self.start_workers()
+
+
+class FDroidManager(Manager):
+
+    def __init__(self):
+        super().__init__()
+
+    def init(self, args):
+        self.worker_count = args.worker
+        self.out_dir = args.out
+        database.create()
+        queue = Queue(args.worker)
+        self.vt_manager = Dummy()
+        self.apk_manager = FDroidApkManager(os.path.abspath(args.root), queue, args.worker)
         self.apk_manager.start()
         self.start_workers()
 

@@ -2,7 +2,7 @@ import logging
 import os
 
 import database
-from manager import GplayManager, AndrozooManager
+from manager import GplayManager, AndrozooManager, FDroidManager
 from utility.convenience import VERBOSE, STATUS
 
 
@@ -42,4 +42,9 @@ def androzoo_analysis(args):
 
 def gplay_analysis(args):
     manager = GplayManager()
+    manager.run(args)
+
+
+def fdroid_analysis(args):
+    manager = FDroidManager()
     manager.run(args)

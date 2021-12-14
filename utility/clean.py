@@ -19,3 +19,12 @@ def androzoo_remnants(sha256, directory):
     if directory.startswith('/tmp/'):
         logger.debug(f'Deleting {directory} created by {sha256}')
         shutil.rmtree(directory, ignore_errors=True)
+
+
+def fdroid_remnants(sha256, directory):
+    try:
+        file = os.path.join(directory, sha256)
+        os.remove(file)
+        os.remove(file + '.html')
+    except Exception as e:
+        logger.error(f'Failed to delete F-Droid remnants for {sha256}: {repr(e)}')
