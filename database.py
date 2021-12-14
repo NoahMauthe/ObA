@@ -627,7 +627,7 @@ def store_fdroid_app(sha256, package_name, version, db_connection=None):
     cursor = db_connection.cursor()
     try:
         cursor.execute("INSERT INTO fdroid (sha256, name, version) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING;",
-                       sha256, package_name, int(version))
+                       (sha256, package_name, int(version)))
         db_connection.commit()
         cursor.close()
     except db.Error as error:
