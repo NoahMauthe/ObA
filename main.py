@@ -3,7 +3,7 @@ import sys
 from analysis import init_logging
 from utility import argument_parser
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 
 def main():

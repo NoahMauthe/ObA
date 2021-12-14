@@ -49,7 +49,7 @@ class Worker(Process):
         signal.signal(signal.SIGINT, signal.SIG_IGN)
         soft, hard = getrlimit(RLIMIT_AS)
         self.logger.log(VERBOSE, f'Initial memory limit was {soft}, {hard}. Restricting to {MAX_MEM}, {MAX_MEM * 1.2}')
-        setrlimit(RLIMIT_AS, (MAX_MEM, MAX_MEM * 1.5))
+        setrlimit(RLIMIT_AS, (MAX_MEM, int(MAX_MEM * 1.2)))
         while True:
             apk_info = self.apks.get()
             if not apk_info:
