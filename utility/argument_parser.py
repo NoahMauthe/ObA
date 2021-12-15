@@ -1,7 +1,7 @@
 import argparse
 import os
 
-from analysis import androzoo_analysis, gplay_analysis, fdroid_analysis
+from analysis import androzoo_analysis, gplay_analysis, fdroid_analysis, vt_queries
 from database import create_db
 from main import VERSION
 
@@ -52,4 +52,10 @@ def parse_args():
     fdroid.add_argument('out', type=str, help='The directory to save method size information to.')
     fdroid.add_argument('root', type=str, help='Specifies the directory root of all .apk files.')
     fdroid.set_defaults(func=fdroid_analysis)
+    vt = subparsers.add_parser('vt', help='Only sends queries to virustotal without additional analysis',
+                               parents=[parent])
+    vt.add_argument('--vt', type=str, help='Specifies location of VirusTotal API Key', default=None)
+    vt.add_argument('--vt-quota', dest='quota', type=int, help='Specifies the VirusTotal API quota already used',
+                    default=0)
+    vt.set_defaults(func=vt_queries)
     return parser.parse_args()

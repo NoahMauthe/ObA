@@ -1,9 +1,11 @@
 import logging
 import os
+import time
 
 import database
 from manager import GplayManager, AndrozooManager, FDroidManager
 from utility.convenience import VERBOSE, STATUS
+from vt_manager import Active
 
 
 def init_logging(arguments):
@@ -48,3 +50,19 @@ def gplay_analysis(args):
 def fdroid_analysis(args):
     manager = FDroidManager()
     manager.run(args)
+
+
+def vt_queries(args):
+    manager = Active(args.vt, args.quota)
+    logger = logging.getLogger('VirusTotal')
+    logger.setLevel(logging.NOTSET)
+    while True:
+        entries = list(database.access('SELECT DISTINCT s.sha256 FROM vt_samples as s LEFT OUTER JOIN vt as r ON s.sha256 = r.sha256 LEFT OUTER JOIN errors as e ON s.sha256 = e.sha256 WHERE e.sha256 is NULL and r.sha256 is NULL;'))
+        if len(entries) == 0:
+            logger.info("Finished processing all apks, exiting now.")
+            break
+        logger.info(f'Found {len(entries)} apks with unfinished virustotal queries.')
+        for entry in entries:
+            manager.offer(entry[0])
+            time.sleep(10)
+        logger.info(manager.info())
