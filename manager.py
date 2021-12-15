@@ -36,7 +36,7 @@ class Manager:
         self.out_dir = None
 
     def init(self, _):
-        self.logger.fatal('Not meant for direct calls, use GplayManager or AndrozooManager instead.')
+        self.logger.fatal('Not meant for direct calls, use GplayManager, FDroidManager or AndrozooManager instead.')
         sys.exit(1)
 
     def start_workers(self):
