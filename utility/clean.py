@@ -25,6 +25,5 @@ def fdroid_remnants(sha256, directory):
     try:
         file = os.path.join(directory, sha256)
         os.remove(file)
-        os.remove(file + '.html')
     except Exception as e:
         logger.error(f'Failed to delete F-Droid remnants for {sha256}: {repr(e)}')
