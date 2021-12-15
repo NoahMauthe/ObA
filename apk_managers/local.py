@@ -47,11 +47,11 @@ class FDroidApkManager(ApkManager):
         dirs = [os.path.dirname(apk) for apk in apk_paths]
         hashes = [sha256sum(apk) for apk in apk_paths]
         apks = []
-        for h, d, c, r, n in zip(hashes, dirs, repeat(store_fdroid_apk_info), repeat(clean.fdroid_remnants), apk_paths):
+        for h, d, c, r, p in zip(hashes, dirs, repeat(store_fdroid_apk_info), repeat(clean.fdroid_remnants), apk_paths):
             if h not in done:
                 apks.append((h, d, c, r))
-                with open(os.path.join(path, h), 'w') as file:
-                    file.write(n.split('.apk')[0] + '\n')
+                with open(os.path.join(os.path.dirname(p), h), 'w') as file:
+                    file.write(p.split('/')[-1].split('.apk')[0] + '\n')
         self.logger.info(f'Initialized with {len(apks)} apks.')
         self.apks = iter(apks)
 
