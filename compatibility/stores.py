@@ -1,8 +1,6 @@
 import fnmatch
 import logging
 import os
-import shlex
-from subprocess import check_output, CalledProcessError
 
 import database
 from API.Objects import App
@@ -11,7 +9,8 @@ from API.Objects import App
 def store_gplay_apk_info(sha256, directory):
     logger = logging.getLogger('protobuf')
     try:
-        pain = os.path.join(directory, fnmatch.filter(os.listdir(directory), '*.pain')[0])
+        pain = os.path.join(directory,
+                            fnmatch.filter(os.listdir(directory), '*.pain')[0])
     except IndexError:
         logger.error(f'Did not find .pain file in {directory}')
         return
@@ -21,8 +20,10 @@ def store_gplay_apk_info(sha256, directory):
     except Exception as error:
         logger.error(f'Protobuf could not handle {sha256}: {repr(error)}')
         return
-    database.store_google_play_app(sha256, app.upload_date(), size, app.package_name(), app.version_code(),
-                                   app.developer(), app.category_name(), app.average_rating(), app.downloads(),
+    database.store_google_play_app(sha256, app.upload_date(), size,
+                                   app.package_name(), app.version_code(),
+                                   app.developer(), app.category_name(),
+                                   app.average_rating(), app.downloads(),
                                    True if app.contains_ads() else False)
 
 
@@ -36,4 +37,3 @@ def store_fdroid_apk_info(sha256, directory):
     except ValueError:
         logger.error(f'Failed to get name and version for {sha256}')
         database.store_fdroid_hash(sha256)
-

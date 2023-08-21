@@ -11,13 +11,17 @@ from utility.exceptions import CfgAnomalyError
 
 
 class BasicBlock:
+
     def __init__(self, bb, mapping):
         self.idx = mapping[bb['BasicBlockId']]
         self.edges = [mapping[bb_id] for bb_id in bb['Edge']]
         # self.edges = list(set([mapping[bb_id] for bb_id in bb['Edge']]))
-        self.exit = instruction_shorthand(bb['instructions'][-1]['name']) if bb['instructions'] else None
+        self.exit = instruction_shorthand(
+            bb['instructions'][-1]['name']) if bb['instructions'] else None
         if 'Exceptions' in bb:
-            self.exceptions = [mapping[e['bb']] for e in bb['Exceptions']['list']]
+            self.exceptions = [
+                mapping[e['bb']] for e in bb['Exceptions']['list']
+            ]
         else:
             self.exceptions = []
 
@@ -27,6 +31,7 @@ class BasicBlock:
 
 
 class DepthLimitVisitor:
+
     def __init__(self, cfg, limit):
         self.depth = 0
         self.limit = limit
@@ -46,6 +51,7 @@ class DepthLimitVisitor:
 
 
 class DFSVisitor:
+
     def __init__(self, cfg):
         self.visited = [False] * len(cfg)
         self.cfg = cfg
@@ -64,6 +70,7 @@ class DFSVisitor:
 
 
 class LocalNgramVisitor(DepthLimitVisitor):
+
     def __init__(self, cfg, n):
         super().__init__(cfg, n)
         self.n = n
@@ -101,6 +108,7 @@ class LocalNgramVisitor(DepthLimitVisitor):
 
 
 class GlobalNgramVisitor(DFSVisitor):
+
     def __init__(self, cfg, n):
         super().__init__(cfg)
         self.n = n
@@ -113,13 +121,17 @@ class GlobalNgramVisitor(DFSVisitor):
 
 
 class NgramVectorizer:
+
     def __init__(self, max_n=5):
         exit_types = "CEGIRST"
         exit_combinations = []
         # Generate all valid exit type combinations, taking into account that
         # we cannot have multiple returns along a path in the CFG.
         for i in range(1, max_n + 1):
-            exit_combinations += [''.join(n) for n in product(exit_types, repeat=i) if 'R' not in n[:-1]]
+            exit_combinations += [
+                ''.join(n) for n in product(exit_types, repeat=i)
+                if 'R' not in n[:-1]
+            ]
         self._vectorizer = {n: 0 for n in exit_combinations}
 
     def vectorize(self, ngrams, bb_count):
@@ -127,7 +139,10 @@ class NgramVectorizer:
         vector.update(ngrams)
         # Sanity check that we didn't get any invalid ngrams added
         assert len(vector) == len(self._vectorizer)
-        return np.array([v / bb_count for k, v in sorted(vector.items(), key=operator.itemgetter(0))], dtype=np.float32)
+        return np.array([
+            v / bb_count
+            for k, v in sorted(vector.items(), key=operator.itemgetter(0))
+        ], dtype=np.float32)
 
 
 def instruction_shorthand(instr):
@@ -166,6 +181,7 @@ def traverse_cfg(cfg, visitor, start_node=0):
         return
 
     class StackEntry:
+
         def __init__(self, idx, is_exception=False):
             self.bb_idx = idx
             self.edge_idx = 0
@@ -212,11 +228,7 @@ class CfgAnomaly:
    Parameters should be set to the same that was used when training the model.
    """
 
-    def __init__(self,
-                 model,
-                 max_n=5,
-                 min_size=600,
-                 min_bb_count=30):
+    def __init__(self, model, max_n=5, min_size=600, min_bb_count=30):
         self.model = model
         self.max_n = max_n
         self.vectorizer = NgramVectorizer(max_n)
@@ -226,7 +238,7 @@ class CfgAnomaly:
     def get_anomaly_scores(self, method_analyses):
         """
       Get anomaly scores for each given method.
-      
+
       Parameters
       ----------
       method_analyses: Iterable of Androguard MethodAnalysis objects.

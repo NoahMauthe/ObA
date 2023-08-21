@@ -36,7 +36,9 @@ class Manager:
         self.out_dir = None
 
     def init(self, _):
-        self.logger.fatal('Not meant for direct calls, use GplayManager, FDroidManager or AndrozooManager instead.')
+        self.logger.fatal(
+            'Not meant for direct calls, use GplayManager, FDroidManager or AndrozooManager instead.'
+        )
         sys.exit(1)
 
     def start_workers(self):
@@ -46,12 +48,13 @@ class Manager:
             self.workers[name] = worker
             worker.start()
             self.logger.log(VERBOSE, f'Started {name}')
-        self.logger.log(STATUS, f'Running analysis with {len(self.workers)} workers.')
+        self.logger.log(STATUS,
+                        f'Running analysis with {len(self.workers)} workers.')
 
     def handle_interrupt(self, *_):
         if current_process().name != 'MainProcess':
             return
-        self.logger.info(f'Received interrupt, initiating shutdown.')
+        self.logger.info('Received interrupt, initiating shutdown.')
         self.shutdown()
 
     def shutdown(self):
@@ -60,16 +63,19 @@ class Manager:
         self.logger.info('Stopped ApkManager.')
         for w in self.workers:
             self.workers[w].terminate()
-        self.logger.info(f'Sent termination signal to all workers, waiting for them to exit.')
+        self.logger.info(
+            'Sent termination signal to all workers, waiting for them to exit.'
+        )
         for w in self.workers:
             self.workers[w].join()
         self.verbose_status()
-        self.logger.info(f'All done, exiting now.')
+        self.logger.info('All done, exiting now.')
         sys.exit(0)
 
     def run(self, args):
         self.init(args)
-        to_sleep = max(1, 60 - ((monotonic_ns() - self.start_time.get()) // 1000000000))
+        to_sleep = max(
+            1, 60 - ((monotonic_ns() - self.start_time.get()) // 1000000000))
         sleep(to_sleep)
         while True:
             try:
@@ -81,7 +87,8 @@ class Manager:
                 self.restart_dead_processes()
                 sleep(60)
             except Exception as error:
-                self.logger.error(f'Main thread encountered an error: {repr(error)}')
+                self.logger.error(
+                    f'Main thread encountered an error: {repr(error)}')
         self.shutdown()
 
     def stop(self, name):
@@ -156,7 +163,8 @@ class Manager:
                     worker.join()
                     worker.close()
                 self.workers[name] = None
-                new_worker = Worker(name, self.apk_manager.queue, self, self.out_dir)
+                new_worker = Worker(name, self.apk_manager.queue, self,
+                                    self.out_dir)
                 self.workers[name] = new_worker
                 new_worker.start()
                 self.logger.info(f'Restarted {name} with pid {new_worker.pid}')
@@ -173,7 +181,8 @@ class GplayManager(Manager):
         database.create()
         queue = Queue(args.worker)
         self.vt_manager = Dummy()
-        self.apk_manager = GplayApkManager(os.path.abspath(args.root), queue, args.worker)
+        self.apk_manager = GplayApkManager(os.path.abspath(args.root), queue,
+                                           args.worker)
         self.apk_manager.start()
         self.start_workers()
 
@@ -189,7 +198,8 @@ class FDroidManager(Manager):
         database.create()
         queue = Queue(args.worker)
         self.vt_manager = Dummy()
-        self.apk_manager = FDroidApkManager(os.path.abspath(args.root), queue, args.worker)
+        self.apk_manager = FDroidApkManager(os.path.abspath(args.root), queue,
+                                            args.worker)
         self.apk_manager.start()
         self.start_workers()
 
@@ -204,7 +214,8 @@ class AndrozooManager(Manager):
         self.out_dir = args.out
         database.create()
         queue = Queue(args.worker)
-        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue, args.worker, args.repeat)
+        self.apk_manager = AndrozooApkManager(args.key, args.queries, queue,
+                                              args.worker, args.repeat)
         if args.vt:
             self.vt_manager = Active(args.vt, args.quota)
         else:

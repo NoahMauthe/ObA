@@ -21,7 +21,10 @@ def sha256sum(filename):
 
 
 def filter_type(filetype):
-    types = {'PNG', 'Targa', 'TrueType', 'Android binary XML', 'JPEG', 'SVG', 'HTML', 'XML', 'ASCII text'}
+    types = {
+        'PNG', 'Targa', 'TrueType', 'Android binary XML', 'JPEG', 'SVG',
+        'HTML', 'XML', 'ASCII text'
+    }
     for t in types:
         if filetype.startswith(t):
             return False
@@ -58,7 +61,8 @@ def extract(apk_path):
 
     """
     tmpdir = os.path.dirname(os.path.realpath(apk_path))
-    check_output(shlex.split(f'nice -n 15 unzip -o -d apk -qq {apk_path}'), cwd=tmpdir)
+    check_output(shlex.split(f'nice -n 15 unzip -o -d apk -qq {apk_path}'),
+                 cwd=tmpdir)
     return os.path.join(tmpdir, 'apk')
 
 
@@ -72,7 +76,7 @@ def shannon_entropy(file_content):
     for x in byte_list:
         p_x = float(file_content.count(x)) / len(file_content)
         if p_x > 0:
-            entropy += - p_x * math.log(p_x, 2)
+            entropy += -p_x * math.log(p_x, 2)
     return entropy
 
 

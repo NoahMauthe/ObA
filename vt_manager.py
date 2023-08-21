@@ -50,9 +50,10 @@ class Active(VTManager):
             return
         self.logger.info(f'Querying VirusTotal for {sha256}')
         try:
-            output = check_output(
-                shlex.split(f"curl -s -S --request GET --url https://www.virustotal.com/api/v3/files/{sha256}"
-                            f" --header 'x-apikey: {self.key}'"), stderr=STDOUT).decode('UTF-8')
+            output = check_output(shlex.split(
+                f"curl -s -S --request GET --url https://www.virustotal.com/api/v3/files/{sha256}"
+                f" --header 'x-apikey: {self.key}'"),
+                                  stderr=STDOUT).decode('UTF-8')
             database.store_vt(sha256, output)
         except CalledProcessError as error:
             database.store_vt_error(sha256, error.stdout)
@@ -63,13 +64,15 @@ class Active(VTManager):
             if self.quota.get() <= DAILY_LIMIT:
                 return True
             elif self.quota.get() == DAILY_LIMIT + 1:
-                self.logger.info(f'Reached daily limit of {DAILY_LIMIT} queries.')
+                self.logger.info(
+                    f'Reached daily limit of {DAILY_LIMIT} queries.')
                 self.start.set(monotonic_ns() + 86400000000000)
             elif monotonic_ns() > self.start.get():
-                self.logger.info(f'Virustotal query quota reset.')
+                self.logger.info('Virustotal query quota reset.')
                 self.quota.set(1)
                 return True
             elif self.quota.get() % 100 == 0:
-                self.logger.info(f'Quota limit reached, still waiting for'
-                                 f'{convert_time(self.start.get() - monotonic_ns())}')
+                self.logger.info(
+                    f'Quota limit reached, still waiting for'
+                    f'{convert_time(self.start.get() - monotonic_ns())}')
             return False

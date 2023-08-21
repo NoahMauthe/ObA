@@ -40,17 +40,21 @@ class AndrozooApkManager(ApkManager):
 
     def next_query(self):
         if self.query:
-            self.logger.info(f'Finished processing the following query:\n\t{self.query}')
+            self.logger.info(
+                f'Finished processing the following query:\n\t{self.query}')
         try:
             self.query = next(self.queries)
-            self.logger.info(f'Previous query had no more apks, continuing with the following query:\n\t{self.query}')
+            self.logger.info(
+                f'Previous query had no more apks, continuing with the following query:\n\t{self.query}'
+            )
             self.apks = iter([row[0] for row in database.access(self.query)])
             return
         except StopIteration:
             if not self.repeat or self.query_yield == 0:
                 raise NoMoreApks
             if self.query_yield == 0:
-                self.logger.info('Previous iteration had no new apks, stopping loop.')
+                self.logger.info(
+                    'Previous iteration had no new apks, stopping loop.')
                 raise NoMoreApks
         self.logger.info('Rerunning all queries to look for new results.')
         with open(self.query_file, 'r') as q:
@@ -66,6 +70,8 @@ class AndrozooApkManager(ApkManager):
                 f' https://androzoo.uni.lu/api/download'), cwd=tmpdir)
         except CalledProcessError as e:
             self.logger.error(f'{sha256} failed downloading.')
-            database.full_error(sha256, f'Failed downloading with code {e.returncode}: {e.stderr}')
+            database.full_error(
+                sha256,
+                f'Failed downloading with code {e.returncode}: {e.stderr}')
             raise DownloadFailed
         return tmpdir
