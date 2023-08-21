@@ -14,6 +14,10 @@ class ApkManager(Process):
         self.workers = workers
 
     def run(self):
+        """Starts the manager in an endless loop to supply apk files for the analysis.
+        Can be stopped by throwing a utility.exceptions.NoMoreApks Error.
+        """
+
         while True:
             try:
                 self.queue.put(self.next_apk())
@@ -25,5 +29,9 @@ class ApkManager(Process):
         self.logger.info('Finished.')
 
     def next_apk(self):
+        """Returns the next apk from a predetermined set of apks.
+        Details thereof depend on the source of the apks and the corresponding implementation,
+        this method is just a dummy.
+        """
         raise NotImplementedError(
             'This class is not meant to be used directly.')

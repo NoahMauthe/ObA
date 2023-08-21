@@ -25,6 +25,24 @@ class AndrozooApkManager(ApkManager):
         self.repeat = repeat
 
     def next_apk(self):
+        """Retrieves the next apk from the androzoo dataset.
+
+        Queries the database for a set of apks, which is then cached and iterated upon
+        until all apks are exhausted. Then, a new query will automatically be constructed
+        so the process of apk retrieval can continue seemlessly.
+
+        Returns
+        -------
+        str
+            sha256 identifier of the apk.
+        str
+            The directory the apk was saved to.
+        method
+            Always none. Can specify a preprocessing function.
+        method
+            The function to execute after the analysis in order to clean any
+            unnecessary overhead from disk.
+        """
         try:
             sha256 = next(self.apks)
             if not sha256:
@@ -39,6 +57,12 @@ class AndrozooApkManager(ApkManager):
             return self.next_apk()
 
     def next_query(self):
+        """Upon the exhaustion of the apk list returned by the previous query,
+        generate a new query to retrieve more apks.
+
+        Does not return a value, instead the new query will be saved as self.query
+        in order to allow for a stateful processing.
+        """
         if self.query:
             self.logger.info(
                 f'Finished processing the following query:\n\t{self.query}')
@@ -62,6 +86,18 @@ class AndrozooApkManager(ApkManager):
         self.query_yield = 0
 
     def download(self, sha256):
+        """Given an apk identifier, downloads the apk from the androzoo dataset.
+
+        Parameters
+        ----------
+        sha256: str
+            The sha256 identifier of the application.
+
+        Returns
+        -------
+        str
+            The directory the apk was saved to.
+        """
         tmpdir = tempfile.mkdtemp()
         self.logger.log(VERBOSE, f'Downloading {sha256}')
         try:
