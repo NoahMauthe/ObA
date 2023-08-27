@@ -1,25 +1,18 @@
 Bootstrap: docker
-From: archlinux:latest
+From: fedora:38
 
 %post
-	# Setting pacman to love candy
-		echo "ILoveCandy" >> /etc/pacman.conf
 	# Installing required packages
-        pacman -Sy --noconfirm git curl unzip python file gcc
-        # Git:      Setup only, will be removed
-        # Curl:     Used to download androzoo apps
-        # Unzip:    Extract apk files
-        # Python:   Required to run everything
-        # File:     Will provide libmagic.so for python-magic
-        # Gcc:      Used to build yara
-	# Setting up pip packages
-		cd /
-		curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-		python get-pip.py
-		rm get-pip.py
-		python -m pip install -U pip
-		python -m pip install --upgrade pip
+        dnf install -y git curl unzip python file gcc python-pip python3-devel
+        # Git:          Setup only, will be removed
+        # Curl:         Used to download androzoo apps
+        # Unzip:        Extract apk files
+        # Python:       Required to run everything
+        # Python-pip:   Required to install python packages
+        # File:         Will provide libmagic.so for python-magic
+        # Gcc:          Used to build yara
     # Installing python packages from source
+        pip install wheel
         git clone --recursive https://github.com/androguard/androguard.git -b v3.4.0a1 --depth 1
         cd androguard
         pip install .
@@ -30,13 +23,12 @@ From: archlinux:latest
         pip install .
         cd /
         rm -rf API
-        pip wheel --wheel-dir=yara-python-dex git+https://github.com/MobSF/yara-python-dex.git
-        pip install --no-index --find-links=yara-python-dex yara-python-dex
+        pip wheel --wheel-dir=yara-python-dex git+https://github.com/MobSF/yara-python-dex.git@1d1b1a036c81e3193cc05522618a466788f0f6e1
     # Installing regular python packages
         python -m pip install psycopg2-binary~=2.9.2
         python -m pip install python-magic~=0.4.24
         python -m pip install apkid~=2.1.2
-        python -m pip install sklearn
+        python -m pip install scikit-learn~=1.3.0
 
 
 %apprun oba
@@ -45,5 +37,5 @@ From: archlinux:latest
 
 %appinstall oba
     git clone https://github.com/NoahMauthe/oba.git
-	pacman -Rns --noconfirm git gcc
+	dnf -y remove git gcc
 
