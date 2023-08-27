@@ -7,7 +7,7 @@ echo "Checking System"
 echo "---------------"
 if which apptainer > /dev/null 2>&1 && which curl > /dev/null 2>&1
 then
-    echo -n "All requirements present "
+    echo "All requirements present "
     echo -n "Done "
     /usr/bin/printf "\xE2\x9C\x94\n\n"
 else
@@ -30,7 +30,7 @@ else
         mkdir postgresql/data
         mkdir postgresql/run
         touch db1.check
-        echo -n "Retrieved postgresql image "
+        echo "Retrieved postgresql image "
     else
         echo "Failed to retrieve postgresql image"
         exit 1
@@ -42,7 +42,7 @@ then
 else
     apptainer run --env "POSTGRES_HOST_AUTH_METHOD=trust" --bind postgresql/data:/var/lib/postgresql/data --bind postgresql/run:/var/run/postgresql postgres.sif >> postgresql/server.log 2>&1 &
     sleep 5
-    echo -n "Started postgresql container "
+    echo "Started postgresql container "
 
 fi
 if ls db2.check > /dev/null 2>&1
@@ -57,7 +57,7 @@ else
         echo "--"
         rm tmp.sql
         touch db2.check
-        echo -n "Created database "
+        echo "Created database "
     else
         rm tmp.sql
         echo "Failed to create database"
