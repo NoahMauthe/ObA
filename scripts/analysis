@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+if [ $# -eq 0 ]
+then
+    args='--help'
+else
+    args=$@
+fi
+if ! ls postgresql/data/postmaster.pid
+then
+    apptainer run --env 'POSTGRES_HOST_AUTH_METHOD=trust' --bind postgresql/data:/var/lib/postgresql/data --bind postgresql/run:/var/run/postgresql postgres.sif >> postgresql/server.log 2&>1 &
+    sleep 5
+    echo -n 'Started postgresql container '
+    /usr/bin/printf "\xE2\x9C\x94\n"
+else
+   echo 'Postgresql is already running'
+fi
+apptainer run --app analysis analysis.sif $args
