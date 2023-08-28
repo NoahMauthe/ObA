@@ -100,6 +100,7 @@ echo "Downloading run script"
 echo "----------------------"
 if curl -o analysis "https://raw.githubusercontent.com/NoahMauthe/ObA/main/scripts/analysis" > /dev/null 2>&1
 then
+    chmod +x analysis
     echo -n "Done "
     /usr/bin/printf "\xE2\x9C\x94\n\n"
 else
