@@ -33,9 +33,9 @@ Thus, in order to execute it, only [Apptainer](https://apptainer.org/) (formerly
 For your convenience we provide a [setup file](scripts/setup.sh) that will perform the installation automatically.
 
 ```
-mkdir obuscation_analysis
+mkdir obfuscation_analysis
 cd obfuscation_analysis
-bash <(curl https://raw.githubusercontent.com/NoahMauthe/ObA/main/script/setup.sh)
+bash <(curl https://raw.githubusercontent.com/NoahMauthe/ObA/main/scripts/setup.sh)
 ```
 
 Of course you are also welcome to perform the container based installation manually or instead choose to install the entire toolchain directly to your host.
