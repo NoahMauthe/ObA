@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 echo "#######################################################"
 echo "Starting to create environment for obfuscation analysis"
 echo "#######################################################"
@@ -52,7 +52,7 @@ then
 else
     echo "create database malware;" > tmp.sql
     echo "--"
-    if psql -U postgres -h 0.0.0.0 -p 5432 -f tmp.sql -v "ON_ERROR_STOP=1"
+    if apptainer exec postgres.sif psql -U postgres -h 0.0.0.0 -p 5432 -f tmp.sql -v "ON_ERROR_STOP=1"
     then
         echo "--"
         rm tmp.sql
