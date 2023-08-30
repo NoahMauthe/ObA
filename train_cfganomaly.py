@@ -4,7 +4,7 @@ import numpy as np
 from scipy.sparse import csc_matrix, vstack
 from sklearn.ensemble import IsolationForest
 from androguard.misc import AnalyzeAPK
-from androguard.core.bytecode import method2json
+from compatibility.androguard import method2json_direct
 from collections import Counter
 import json
 import os.path
@@ -37,7 +37,7 @@ def analyze_apk(arguments):
             continue
 
         meth_analysis = dx.get_method(method.get_method())
-        g = json.loads(method2json(meth_analysis, directed_graph=True))
+        g = json.loads(method2json_direct(meth_analysis))
 
         tot_bbs = len(g['reports'])
 
