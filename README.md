@@ -31,6 +31,7 @@ Thus, in order to execute it, only [Apptainer](https://apptainer.org/) (formerly
 ## Installation
 
 For your convenience we provide a [setup file](scripts/setup.sh) that will perform the installation automatically.
+Please note however, that this will simply install the required tools, but not yet set up the database to analyze androzoo applications since this is not necessarily the intnded use case and will downoad GBs of data.
 
 ```
 mkdir obfuscation_analysis
@@ -40,6 +41,24 @@ bash <(curl https://raw.githubusercontent.com/NoahMauthe/ObA/main/scripts/setup.
 
 Of course you are also welcome to perform the container based installation manually or instead choose to install the entire toolchain directly to your host.
 In the latter case, the tool requires Python3 and the necessary libraries can be found in [analysis.def](environment/analysis.def).
+
+## Database preparation for androzoo analysis
+
+In oder to analyze androzoo apks, you will need to obtain an API key from the team behind it.
+However, the follwong step can already be done without this key as it is only required to download apks, not the metadata.
+
+```./analysis createdb androzoo.csv.gz```
+
+The above command will download the current androzoo dataset information (updated daily) and save it to ```androzoo.csv.gz``` for later use.
+Additionally, our tool will populate the database with this information so it can be directly used in the next steps of the analysis.
+
+### Virustotal checking
+
+If you also have an API key for virustotal and want to get additional data from that source, the database can be prepared as shown o´below:
+
+```./analysis createdb --sample --local <androzoo.csv.gz> <sample-file>```
+
+In the future, it is the intention to remove this step and instead provide samples for virustotal checking automatically at runtime.
 
 ## Attribution
 
