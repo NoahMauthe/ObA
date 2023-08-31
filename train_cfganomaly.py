@@ -32,7 +32,7 @@ def analyze_apk(arguments):
         if method.is_external():
             continue
 
-        if 2*method.get_method().get_length() < min_size:
+        if 2 * method.get_method().get_length() < min_size:
             skipped += 1
             continue
 
@@ -50,7 +50,7 @@ def analyze_apk(arguments):
         vector = vectorizer.vectorize(ngrams, tot_bbs)
 
         method_name = method.get_method().get_name()
-        code_len = 2*method.get_method().get_length()
+        code_len = 2 * method.get_method().get_length()
 
         # Bundle all methods that are >= 2^11 bytes into one bin to avoid
         # very small bins, which might lead to overfitting.
@@ -68,10 +68,22 @@ parser = argparse.ArgumentParser('Tool for training CFG anomaly detector.')
 parser.add_argument('appdir', help='path to directory with apps')
 parser.add_argument('output', help='model-file output path')
 parser.add_argument('--max_n', type=int, default=5, help='maximum n-gram size')
-parser.add_argument('--min_size', type=int, default=300, help='minimum method size (bytes)')
-parser.add_argument('--min_bbs', type=int, default=30, help='minimum number of basic blocks')
-parser.add_argument('--ensemble_size', type=int, default=300, help='number of trees')
-parser.add_argument('--n_threads', type=int, default=-1, help='number of threads to use')
+parser.add_argument('--min_size',
+                    type=int,
+                    default=300,
+                    help='minimum method size (bytes)')
+parser.add_argument('--min_bbs',
+                    type=int,
+                    default=30,
+                    help='minimum number of basic blocks')
+parser.add_argument('--ensemble_size',
+                    type=int,
+                    default=300,
+                    help='number of trees')
+parser.add_argument('--n_threads',
+                    type=int,
+                    default=-1,
+                    help='number of threads to use')
 
 args = parser.parse_args()
 
@@ -89,9 +101,11 @@ start_time = time.time()
 
 print("Extracting training samples...")
 
-entries = [(path, args.max_n, args.min_size, args.min_bbs) for path in glob.glob(os.path.join(args.appdir, '*.apk'))]
+entries = [(path, args.max_n, args.min_size, args.min_bbs)
+           for path in glob.glob(os.path.join(args.appdir, '*.apk'))]
 with Pool(args.n_threads if args.n_threads > 0 else None) as pool:
-    for filename, results, bin_sizes, skipped in tqdm(pool.imap_unordered(analyze_apk, entries, 1)):
+    for filename, results, bin_sizes, skipped in tqdm(
+            pool.imap_unordered(analyze_apk, entries, 1)):
         if len(results) == 0:
             no_methods += 1
             continue
@@ -99,13 +113,12 @@ with Pool(args.n_threads if args.n_threads > 0 else None) as pool:
         tot_skipped += skipped
 
         vectors = [r[3] for r in results]
-        weights += [1/r[1] for r in results]
+        weights += [1 / r[1] for r in results]
 
         # app_mapping[filename] = (idx, idx + len(vectors))
         # idx = len(vectors)
 
         matrices.append(csc_matrix(vectors, dtype=np.float32))
-        
 
 full_matrix = vstack(matrices, format='csc')
 weights_arr = np.array(weights)
@@ -117,7 +130,9 @@ print("   Skipped methods: {}.".format(tot_skipped))
 
 print("\nTraining model...")
 
-model = IsolationForest(n_estimators=args.ensemble_size, n_jobs=args.n_threads, max_samples=1.0)
+model = IsolationForest(n_estimators=args.ensemble_size,
+                        n_jobs=args.n_threads,
+                        max_samples=1.0)
 model.fit(full_matrix, sample_weight=weights_arr)
 
 print(f"\nAll done! Saving model to {args.output}")
