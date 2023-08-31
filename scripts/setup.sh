@@ -41,7 +41,8 @@ then
     echo "WARNING: Another postgres instance seems to be running already. If this is a local instance you use for other purposes than our tool, the next commands will probably fail and you need to adapt them to your database."
 else
     apptainer run --env "POSTGRES_HOST_AUTH_METHOD=trust" --bind postgresql/data:/var/lib/postgresql/data --bind postgresql/run:/var/run/postgresql postgres.sif >> postgresql/server.log 2>&1 &
-    sleep 5
+    echo "Waiting for postgresql container to start (10 seconds)"
+    sleep 10
     echo "Started postgresql container "
 
 fi
