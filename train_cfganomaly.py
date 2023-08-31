@@ -15,7 +15,7 @@ import gzip
 import pickle
 import argparse
 import time
-import cfganomaly
+from cfganomaly import cfganomaly
 
 
 def analyze_apk(arguments):
